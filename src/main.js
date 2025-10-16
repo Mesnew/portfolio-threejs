@@ -369,10 +369,11 @@ class Portfolio3D {
                 });
 
                 // Optimiser les textures pour éviter les rayures et artifacts visuels
+                console.error('🏎️ [McQueen] About to optimize textures, renderer:', !!this.renderer);
                 if (this.renderer) {
                     optimizeModel(mcqueenModel, this.renderer);
                 } else {
-                    console.warn('⚠️ Renderer non fourni, optimisation des textures ignorée');
+                    console.error('❌ [McQueen] Renderer non fourni, optimisation des textures ignorée');
                 }
 
                 // Ajouter le modèle au groupe de la voiture

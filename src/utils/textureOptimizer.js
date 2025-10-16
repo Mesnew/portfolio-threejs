@@ -79,13 +79,21 @@ export function optimizeMaterial(material, renderer) {
  * @param {THREE.WebGLRenderer} renderer - Le renderer
  */
 export function optimizeModel(model, renderer) {
+    // LOGS CRITIQUES IMPOSSIBLES À SUPPRIMER
+    console.error('🔧 [TextureOptimizer] CALLED - Starting texture optimization');
+
     if (!model || !renderer) {
-        console.error('[TextureOptimizer] ERROR: model or renderer is missing!');
+        console.error('❌ [TextureOptimizer] ERROR: model or renderer is missing!');
+        console.error('   - model:', !!model);
+        console.error('   - renderer:', !!renderer);
         return;
     }
 
     let textureCount = 0;
     let materialCount = 0;
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+    console.error(`🔧 [TextureOptimizer] Max anisotropy available: ${maxAniso}x`);
 
     model.traverse((child) => {
         if (child.isMesh && child.material) {
@@ -104,9 +112,9 @@ export function optimizeModel(model, renderer) {
         }
     });
 
-    // Logs importants même en production (utiliser console.warn pour qu'ils s'affichent en prod)
-    console.warn(`[TextureOptimizer] ✅ Optimized ${textureCount} textures in ${materialCount} materials`);
-    console.warn(`[TextureOptimizer] → Anisotropy: ${renderer.capabilities.getMaxAnisotropy()}x`);
+    // LOGS CRITIQUES IMPOSSIBLES À SUPPRIMER (console.error n'est jamais désactivé)
+    console.error(`✅ [TextureOptimizer] COMPLETED: ${textureCount} textures in ${materialCount} materials`);
+    console.error(`   → Anisotropy applied: ${maxAniso}x`);
 }
 
 /**

@@ -90,10 +90,11 @@ export function createRadiatorSpringsSVGLayout(scene, world, objects, renderer) 
             });
 
             // Optimiser les textures pour éviter les rayures et artifacts visuels
+            console.error('🏜️ [RadiatorSprings] About to optimize textures, renderer:', !!renderer);
             if (renderer) {
                 optimizeModel(model, renderer);
             } else {
-                console.warn('⚠️ Renderer non fourni, optimisation des textures ignorée');
+                console.error('❌ [RadiatorSprings] Renderer non fourni, optimisation des textures ignorée');
             }
 
             scene.add(model);
