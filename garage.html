@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garage - Portfolio 3D</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Menu latéral */
+        .side-menu {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 350px;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 40, 0.95));
+            backdrop-filter: blur(20px);
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 40px 30px;
+            color: white;
+            box-shadow: -10px 0 50px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .menu-header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .menu-title {
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #4ecdc4, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .menu-subtitle {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .menu-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4ecdc4;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #4ecdc4, #ff6b6b);
+            border-radius: 2px;
+        }
+
+        .menu-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .menu-item:hover {
+            background: rgba(78, 205, 196, 0.1);
+            border-color: rgba(78, 205, 196, 0.5);
+            transform: translateX(-5px);
+        }
+
+        .menu-item-icon {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #4ecdc4, #ff6b6b);
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        .menu-item-content {
+            flex: 1;
+        }
+
+        .menu-item-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .menu-item-description {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .back-button {
+            background: linear-gradient(135deg, #ff6b6b, #d64541);
+            padding: 15px 25px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .back-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.3);
+        }
+
+        /* Titre en haut */
+        .top-title {
+            position: fixed;
+            top: 40px;
+            left: 40px;
+            z-index: 90;
+            color: white;
+        }
+
+        .top-title h1 {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #4ecdc4, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+        }
+
+        .top-title p {
+            font-size: 16px;
+            opacity: 0.7;
+        }
+
+        /* Controls info */
+        .controls-info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 12px;
+            color: white;
+            font-size: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 90;
+        }
+
+        .controls-info p {
+            margin: 5px 0;
+            opacity: 0.8;
+        }
+
+        /* Panneau de peinture */
+        .paint-panel {
+            position: fixed;
+            top: 40px;
+            left: 40px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 40, 0.95));
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .paint-panel.closed {
+            padding: 15px;
+        }
+
+        .paint-toggle {
+            background: linear-gradient(135deg, #4ecdc4, #ff6b6b);
+            border: none;
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        .paint-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.5);
+        }
+
+        .paint-toggle.active {
+            background: linear-gradient(135deg, #ff6b6b, #d64541);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3); }
+            50% { box-shadow: 0 4px 25px rgba(255, 107, 107, 0.6); }
+        }
+
+        .paint-content {
+            margin-top: 15px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .paint-content.open {
+            max-height: 500px;
+        }
+
+        .paint-title {
+            font-size: 14px;
+            color: white;
+            opacity: 0.7;
+            margin-bottom: 10px;
+        }
+
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .color-swatch {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 3px solid transparent;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .color-swatch.selected {
+            border-color: white;
+            transform: scale(1.15);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .paint-info {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: white;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        .paint-info strong {
+            color: #4ecdc4;
+        }
+
+        .part-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .part-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 15px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .part-button:hover {
+            background: rgba(78, 205, 196, 0.2);
+            border-color: rgba(78, 205, 196, 0.5);
+        }
+
+        .part-button.selected {
+            background: linear-gradient(135deg, #4ecdc4, #ff6b6b);
+            border-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <!-- Panneau de peinture -->
+    <div class="paint-panel">
+        <button class="paint-toggle" onclick="togglePaintMode()">
+            <span id="paint-icon">🎨</span>
+            <span id="paint-text">Mode Peinture</span>
+        </button>
+
+        <div class="paint-content" id="paint-content">
+            <div class="paint-title">🎨 Palette de Couleurs</div>
+            <div class="color-palette" id="color-palette">
+                <!-- Les couleurs seront ajoutées dynamiquement -->
+            </div>
+
+            <div class="paint-title">🔧 Partie à Peindre</div>
+            <div class="part-selector">
+                <button class="part-button selected" onclick="selectPart('body')">Carrosserie</button>
+                <button class="part-button" onclick="selectPart('cabin')">Cabine</button>
+                <button class="part-button" onclick="selectPart('wheels')">Roues</button>
+                <button class="part-button" onclick="selectPart('all')">Tout</button>
+            </div>
+
+            <div class="paint-info">
+                <strong>💡 Astuce:</strong> Activez le mode peinture et cliquez sur la voiture pour appliquer la couleur sélectionnée!
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu latéral -->
+    <div class="side-menu">
+        <div class="menu-header">
+            <div class="menu-title">MENU</div>
+            <div class="menu-subtitle">Navigation du Portfolio</div>
+        </div>
+
+        <div class="menu-section">
+            <div class="section-title">📄 Pages</div>
+
+            <div class="menu-item" onclick="navigateTo('about')">
+                <div class="menu-item-icon">👋</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">À Propos</div>
+                    <div class="menu-item-description">Découvrez mon parcours</div>
+                </div>
+            </div>
+
+            <div class="menu-item" onclick="navigateTo('projects')">
+                <div class="menu-item-icon">🚀</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Projets</div>
+                    <div class="menu-item-description">Mes réalisations</div>
+                </div>
+            </div>
+
+            <div class="menu-item" onclick="navigateTo('skills')">
+                <div class="menu-item-icon">💻</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Compétences</div>
+                    <div class="menu-item-description">Technologies maîtrisées</div>
+                </div>
+            </div>
+
+            <div class="menu-item" onclick="navigateTo('contact')">
+                <div class="menu-item-icon">📧</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Contact</div>
+                    <div class="menu-item-description">Restons en contact</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="menu-section">
+            <div class="section-title">🎨 Personnalisation</div>
+
+            <div class="menu-item" onclick="changeCarColor('red')">
+                <div class="menu-item-icon" style="background: #ff0000;">🎨</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Couleur Rouge</div>
+                    <div class="menu-item-description">Classique et sportif</div>
+                </div>
+            </div>
+
+            <div class="menu-item" onclick="changeCarColor('blue')">
+                <div class="menu-item-icon" style="background: #0066ff;">🎨</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Couleur Bleue</div>
+                    <div class="menu-item-description">Élégant et moderne</div>
+                </div>
+            </div>
+
+            <div class="menu-item" onclick="changeCarColor('green')">
+                <div class="menu-item-icon" style="background: #00cc00;">🎨</div>
+                <div class="menu-item-content">
+                    <div class="menu-item-title">Couleur Verte</div>
+                    <div class="menu-item-description">Écologique et unique</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="back-button" onclick="goBack()">
+            ⬅️ Retour au monde 3D
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-info">
+        <p><strong>🖱️ Clic gauche + glisser:</strong> Rotation</p>
+        <p><strong>🖱️ Molette:</strong> Zoom</p>
+        <p><strong>🖱️ Clic droit + glisser:</strong> Déplacer</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module" src="./src/garage.js"></script>
+
+    <script>
+        // État du mode peinture
+        let paintModeActive = false;
+        let selectedColor = '#ff0000';
+        let selectedPart = 'body';
+
+        // Initialiser la palette de couleurs
+        document.addEventListener('DOMContentLoaded', () => {
+            const palette = document.getElementById('color-palette');
+            const colors = [
+                { name: 'Rouge', hex: '#ff0000' },
+                { name: 'Bleu', hex: '#0066ff' },
+                { name: 'Vert', hex: '#00cc00' },
+                { name: 'Jaune', hex: '#ffdd00' },
+                { name: 'Violet', hex: '#cc00ff' },
+                { name: 'Orange', hex: '#ff6600' },
+                { name: 'Rose', hex: '#ff69b4' },
+                { name: 'Cyan', hex: '#00ffff' },
+                { name: 'Blanc', hex: '#ffffff' },
+                { name: 'Noir', hex: '#000000' },
+                { name: 'Argent', hex: '#c0c0c0' },
+                { name: 'Or', hex: '#ffd700' }
+            ];
+
+            colors.forEach((color, index) => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch' + (index === 0 ? ' selected' : '');
+                swatch.style.background = color.hex;
+                swatch.title = color.name;
+                swatch.onclick = () => selectColor(color.hex, swatch);
+                palette.appendChild(swatch);
+            });
+        });
+
+        function togglePaintMode() {
+            paintModeActive = !paintModeActive;
+            const toggle = document.querySelector('.paint-toggle');
+            const content = document.getElementById('paint-content');
+            const icon = document.getElementById('paint-icon');
+            const text = document.getElementById('paint-text');
+
+            if (paintModeActive) {
+                toggle.classList.add('active');
+                content.classList.add('open');
+                icon.textContent = '🖌️';
+                text.textContent = 'Mode Actif';
+
+                // Notifier garage.js
+                if (window.garageApp) {
+                    window.garageApp.setPaintMode(true);
+                }
+            } else {
+                toggle.classList.remove('active');
+                content.classList.remove('open');
+                icon.textContent = '🎨';
+                text.textContent = 'Mode Peinture';
+
+                // Notifier garage.js
+                if (window.garageApp) {
+                    window.garageApp.setPaintMode(false);
+                }
+            }
+        }
+
+        function selectColor(hex, swatchElement) {
+            selectedColor = hex;
+
+            // Retirer la sélection des autres
+            document.querySelectorAll('.color-swatch').forEach(s => {
+                s.classList.remove('selected');
+            });
+
+            // Ajouter la sélection au nouveau
+            swatchElement.classList.add('selected');
+
+            // Notifier garage.js
+            if (window.garageApp) {
+                window.garageApp.setSelectedColor(hex);
+            }
+        }
+
+        function selectPart(part) {
+            selectedPart = part;
+
+            // Mettre à jour l'UI
+            document.querySelectorAll('.part-button').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+
+            // Notifier garage.js
+            if (window.garageApp) {
+                window.garageApp.setSelectedPart(part);
+            }
+        }
+
+        function navigateTo(page) {
+            console.log('Navigating to:', page);
+            alert(`Navigation vers la page ${page} (à implémenter)`);
+        }
+
+        function changeCarColor(color) {
+            // Cette fonction sera appelée depuis garage.js
+            if (window.garageApp && window.garageApp.changeCarColor) {
+                window.garageApp.changeCarColor(color);
+            }
+        }
+
+        function goBack() {
+            // Créer overlay de transition
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: black;
+                opacity: 0;
+                z-index: 10000;
+                transition: opacity 0.5s ease-in-out;
+            `;
+            document.body.appendChild(overlay);
+
+            // Fade in
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+            }, 10);
+
+            // Retourner à l'index
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 500);
+        }
+    </script>
+</body>
+</html>

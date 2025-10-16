@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:bruno-simon.com)",
+      "WebSearch",
+      "WebFetch(domain:medium.com)",
+      "Bash(npm run dev)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(chmod:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

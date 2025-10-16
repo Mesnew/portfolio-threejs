@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio 3D - Bruno Simon Style</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* HUD principal - en haut à gauche */
+        .hud-top-left {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        .hud-panel {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(20, 20, 40, 0.6));
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-bottom: 15px;
+        }
+
+        .hud-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            background: linear-gradient(90deg, #4ecdc4, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hud-subtitle {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 15px;
+        }
+
+        /* Compteur de vitesse stylé */
+        .speedometer {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .speed-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                #44ff44 0%,
+                #ffaa44 50%,
+                #ff4444 100%
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 20px rgba(68, 255, 68, 0.3);
+        }
+
+        .speed-inner {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .speed-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #44ff44;
+        }
+
+        .speed-unit {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .speed-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .stat-label {
+            opacity: 0.7;
+            margin-bottom: 3px;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        /* Contrôles - en bas à gauche */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        .controls-panel {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(20, 20, 40, 0.6));
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px 20px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-section {
+            margin-bottom: 10px;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #4ecdc4;
+            font-size: 13px;
+        }
+
+        .control-item {
+            font-size: 11px;
+            opacity: 0.8;
+            margin: 3px 0;
+        }
+
+        /* Mini indicateur de zones */
+        .zone-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(20, 20, 40, 0.6));
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 200px;
+        }
+
+        .zone-title {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 8px;
+        }
+
+        .zone-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .zone-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            padding: 5px 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+
+        .zone-item.active {
+            background: rgba(255, 170, 0, 0.3);
+            border-left: 3px solid #ffaa00;
+        }
+
+        .zone-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        #zone-content h2 {
+            margin: 0 0 15px 0;
+            font-size: 28px;
+            color: #4ecdc4;
+        }
+
+        #zone-content p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        #zone-content ul {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+
+        #zone-content li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        #zone-content strong {
+            color: #ffe66d;
+        }
+
+        /* Loading Screen - Cars Theme */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 50%, #1a1a1a 100%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.1);
+        }
+
+        /* Maintenance Banner */
+        .maintenance-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #ff6b00, #ff3d00);
+            color: white;
+            padding: 15px 30px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 0 4px 20px rgba(255, 61, 0, 0.4);
+            border-bottom: 3px solid #ffaa00;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .maintenance-banner-icon {
+            display: inline-block;
+            margin: 0 8px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        /* Logo Lightning McQueen */
+        .loading-logo {
+            font-size: 80px;
+            margin-bottom: 30px;
+            animation: carBounce 1.5s ease-in-out infinite;
+        }
+
+        @keyframes carBounce {
+            0%, 100% {
+                transform: translateY(0) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-10px) rotate(-2deg);
+            }
+            75% {
+                transform: translateY(-5px) rotate(2deg);
+            }
+        }
+
+        .loading-title {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #ff0000, #ff6600, #ffaa00, #ff6600, #ff0000);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease infinite;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .loading-subtitle {
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 50px;
+            font-style: italic;
+        }
+
+        /* Speedometer Loading */
+        .loading-speedometer {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #2a2a2a 0%, #1a1a1a 70%);
+            border: 8px solid #333;
+            box-shadow: 0 0 40px rgba(255, 102, 0, 0.3), inset 0 0 30px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .loading-speedometer::before {
+            content: '';
+            position: absolute;
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #ff6600;
+            border-right-color: #ff6600;
+            animation: rotate 2s linear infinite;
+        }
+
+        @keyframes rotate {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-percentage {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff6600;
+            text-shadow: 0 0 20px rgba(255, 102, 0, 0.8);
+            z-index: 1;
+        }
+
+        .loading-percentage-label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 1;
+        }
+
+        /* Progress Bar - Road Style */
+        .loading-road-container {
+            width: 500px;
+            max-width: 80vw;
+            height: 40px;
+            background: #1a1a1a;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 3px solid #333;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 2px 10px rgba(0, 0, 0, 0.8);
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .loading-road {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0000, #ff6600, #ffaa00);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 0 20px rgba(255, 102, 0, 0.6);
+        }
+
+        .loading-road::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: repeating-linear-gradient(
+                90deg,
+                white 0px,
+                white 20px,
+                transparent 20px,
+                transparent 40px
+            );
+            animation: roadMove 1s linear infinite;
+            transform: translateY(-50%);
+        }
+
+        @keyframes roadMove {
+            0% { transform: translateX(0) translateY(-50%); }
+            100% { transform: translateX(-40px) translateY(-50%); }
+        }
+
+        .loading-status {
+            color: #888;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 10px;
+            min-height: 20px;
+        }
+
+        .loading-tip {
+            color: #666;
+            font-size: 13px;
+            text-align: center;
+            font-style: italic;
+            max-width: 400px;
+            animation: fadeInOut 4s ease-in-out infinite;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Tire Marks Animation */
+        .tire-marks {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            height: 30px;
+            opacity: 0.3;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                #333 10px,
+                #333 12px
+            );
+            animation: tireMove 0.8s linear infinite;
+        }
+
+        @keyframes tireMove {
+            from { transform: translateX(0); }
+            to { transform: translateX(20px); }
+        }
+
+        /* Barre de Boost */
+        .boost-container {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .boost-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .boost-label {
+            font-size: 12px;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .boost-value-text {
+            font-size: 12px;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .boost-bar-container {
+            width: 100%;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .boost-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4ecdc4, #44ff44);
+            border-radius: 6px;
+            transition: width 0.1s ease, background 0.3s ease, box-shadow 0.3s ease;
+            width: 100%;
+        }
+
+        /* Notifications d'Achievements */
+        .achievement-notification {
+            position: fixed;
+            top: 100px;
+            right: -400px;
+            z-index: 1000;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.95), rgba(255, 165, 0, 0.95));
+            backdrop-filter: blur(10px);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 10px 40px rgba(255, 215, 0, 0.5);
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            max-width: 350px;
+        }
+
+        .achievement-icon {
+            font-size: 48px;
+            animation: bounce 0.6s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .achievement-content {
+            color: #000;
+        }
+
+        .achievement-title {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            color: #8b4513;
+        }
+
+        .achievement-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: #000;
+        }
+
+        .achievement-desc {
+            font-size: 12px;
+            opacity: 0.8;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <!-- Maintenance Banner (optionnel - commenter pour désactiver) -->
+    <div class="maintenance-banner" id="maintenance-banner">
+        <span class="maintenance-banner-icon">⚠️</span>
+        Site en maintenance - Certaines fonctionnalités peuvent être limitées
+        <span class="maintenance-banner-icon">⚠️</span>
+    </div>
+
+    <!-- Loading Screen Cars Theme -->
+    <div class="loading-screen" id="loading-screen">
+        <div class="tire-marks"></div>
+
+        <div class="loading-logo">🏎️</div>
+
+        <div class="loading-title">Radiator Springs</div>
+        <div class="loading-subtitle">Get ready to race...</div>
+
+        <!-- Speedometer with percentage -->
+        <div class="loading-speedometer">
+            <div class="loading-percentage" id="loading-percentage">0%</div>
+            <div class="loading-percentage-label">Loading</div>
+        </div>
+
+        <!-- Road Progress Bar -->
+        <div class="loading-road-container">
+            <div class="loading-road" id="loading-road"></div>
+        </div>
+
+        <!-- Status Text -->
+        <div class="loading-status" id="loading-status">Initialisation...</div>
+
+        <!-- Random Tips -->
+        <div class="loading-tip" id="loading-tip">
+            💡 Astuce : Maintenez SHIFT pour activer le mode turbo !
+        </div>
+    </div>
+
+    <!-- HUD principal -->
+    <div class="hud-top-left">
+        <div class="hud-panel">
+            <div class="hud-title">Portfolio 3D</div>
+            <div class="hud-subtitle">Interactive Experience</div>
+
+            <div class="speedometer">
+                <div class="speed-circle">
+                    <div class="speed-inner">
+                        <div class="speed-value" id="speed-value">0</div>
+                        <div class="speed-unit">km/h</div>
+                    </div>
+                </div>
+                <div class="speed-label">VITESSE</div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Position X</div>
+                    <div class="stat-value" id="pos-x">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Position Z</div>
+                    <div class="stat-value" id="pos-z">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Objets</div>
+                    <div class="stat-value" id="obj-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">FPS</div>
+                    <div class="stat-value" id="fps-count">60</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud-panel" style="background: linear-gradient(135deg, rgba(255, 221, 0, 0.2), rgba(255, 170, 0, 0.1)); border-color: rgba(255, 221, 0, 0.3);">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 32px;">⭐</div>
+                <div>
+                    <div style="font-size: 12px; opacity: 0.7;">SCORE</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #ffdd00;" id="score-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barre de Boost -->
+        <div class="hud-panel" style="background: linear-gradient(135deg, rgba(255, 102, 0, 0.2), rgba(255, 170, 0, 0.1)); border-color: rgba(255, 102, 0, 0.3);">
+            <div class="boost-container">
+                <div class="boost-header">
+                    <div class="boost-label">
+                        <span>🚀</span>
+                        <span>BOOST</span>
+                    </div>
+                    <div class="boost-value-text"><span id="boost-value">100</span>/100</div>
+                </div>
+                <div class="boost-bar-container">
+                    <div class="boost-bar" id="boost-bar"></div>
+                </div>
+                <div style="font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: center;">
+                    Maintenez SHIFT pour activer
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mini-map -->
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 100; background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(20, 20, 40, 0.7)); backdrop-filter: blur(10px); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
+        <div style="color: white; font-size: 12px; opacity: 0.7; margin-bottom: 8px; text-align: center;">MINI-MAP</div>
+        <canvas id="minimap" width="150" height="150" style="border-radius: 10px; display: block;"></canvas>
+    </div>
+
+    <!-- Indicateur de zones -->
+    <div class="zone-indicator" style="top: 200px;">
+        <div class="zone-title">ZONES INTERACTIVES</div>
+        <div class="zone-list" id="zone-list">
+            <div class="zone-item" data-zone="about">
+                <div class="zone-dot" style="background: #4ecdc4;"></div>
+                <span>About Me</span>
+            </div>
+            <div class="zone-item" data-zone="projects">
+                <div class="zone-dot" style="background: #ff6b6b;"></div>
+                <span>Projects</span>
+            </div>
+            <div class="zone-item" data-zone="skills">
+                <div class="zone-dot" style="background: #ffe66d;"></div>
+                <span>Skills</span>
+            </div>
+            <div class="zone-item" data-zone="contact">
+                <div class="zone-dot" style="background: #a8e6cf;"></div>
+                <span>Contact</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contrôles -->
+    <div class="controls">
+        <div class="controls-panel">
+            <div class="control-section">
+                <div class="control-title">🚗 DÉPLACEMENT</div>
+                <div class="control-item">W / ↑ : Accélérer</div>
+                <div class="control-item">S / ↓ : Freiner / Reculer</div>
+                <div class="control-item">A / ← : Tourner gauche</div>
+                <div class="control-item">D / → : Tourner droite</div>
+                <div class="control-item">ESPACE : Frein à main</div>
+                <div class="control-item" style="color: #ff6600; font-weight: bold;">SHIFT : 🚀 Mode Turbo</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">🎮 INTERACTIONS</div>
+                <div class="control-item">Clic : Faire sauter objets</div>
+                <div class="control-item">Entrer : Fermer zone info</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>
