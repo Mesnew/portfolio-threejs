@@ -1,0 +1,2986 @@
+/**
+ * Fonctions pour construire l'environnement de Radiator Springs
+ * Remplace les méthodes génériques par un layout précis
+ */
+
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+import { RadiatorSpringsLayout } from './radiatorSpringsLayout.js';
+
+/**
+ * Crée le sol et la route en U de Radiator Springs
+ */
+export function createRadiatorSpringsFloor(scene, world, objects) {
+    console.log('🏜️ Creating Radiator Springs floor and road...');
+
+    const layout = RadiatorSpringsLayout;
+
+    // ========== 1. SOL DÉSERTIQUE (AUTOUR DE LA ROUTE) ==========
+    const desertSize = 400;
+    const desertGeometry = new THREE.PlaneGeometry(desertSize, desertSize);
+    const desertMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4a373, // Couleur sable/désert
+        roughness: 0.9,
+        metalness: 0.1
+    });
+    const desert = new THREE.Mesh(desertGeometry, desertMaterial);
+    desert.rotation.x = -Math.PI / 2;
+    desert.receiveShadow = true;
+    scene.add(desert);
+
+    // Physique pour le désert - créer matériau pour contact avec voiture
+    const floorMaterial = new CANNON.Material('floor');
+    const desertShape = new CANNON.Plane();
+    const desertBody = new CANNON.Body({
+        mass: 0,
+        material: floorMaterial
+    });
+    desertBody.addShape(desertShape);
+    desertBody.position.set(0, 0, 0); // Explicitement à y=0
+    desertBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+    world.addBody(desertBody);
+
+    console.log('✅ Ground physics body created at y=0 with material');
+    console.log('   - Ground body ID:', desertBody.id);
+    console.log('   - Ground mass:', desertBody.mass);
+    console.log('   - Ground position:', desertBody.position.x, desertBody.position.y, desertBody.position.z);
+
+    // ========== 2. ROUTE PRINCIPALE (ASPHALTE) ==========
+    const roadPath = layout.road.path;
+    const roadWidth = layout.road.width;
+
+    // Créer segments de route entre chaque point
+    for (let i = 0; i < roadPath.length - 1; i++) {
+        const start = roadPath[i];
+        const end = roadPath[i + 1];
+
+        // Calculer longueur et angle
+        const dx = end.x - start.x;
+        const dz = end.z - start.z;
+        const length = Math.sqrt(dx * dx + dz * dz);
+        const angle = Math.atan2(dz, dx);
+
+        // Créer segment de route
+        const roadGeometry = new THREE.PlaneGeometry(length, roadWidth);
+        const roadMaterial = new THREE.MeshStandardMaterial({
+            color: layout.road.color,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const roadSegment = new THREE.Mesh(roadGeometry, roadMaterial);
+
+        // Positionner et orienter
+        roadSegment.rotation.x = -Math.PI / 2;
+        roadSegment.rotation.z = angle;
+        roadSegment.position.set(
+            (start.x + end.x) / 2,
+            0.02, // Légèrement au-dessus du désert
+            (start.z + end.z) / 2
+        );
+        roadSegment.receiveShadow = true;
+        scene.add(roadSegment);
+
+        // ========== 3. BANDES JAUNES (LIGNE CONTINUE) ==========
+        const lineGeometry = new THREE.PlaneGeometry(length, layout.road.lineWidth);
+        const lineMaterial = new THREE.MeshStandardMaterial({
+            color: layout.road.lineColor,
+            roughness: 0.5,
+            emissive: layout.road.lineColor,
+            emissiveIntensity: 0.2
+        });
+        const centerLine = new THREE.Mesh(lineGeometry, lineMaterial);
+        centerLine.rotation.x = -Math.PI / 2;
+        centerLine.rotation.z = angle;
+        centerLine.position.set(
+            (start.x + end.x) / 2,
+            0.03, // Au-dessus de la route
+            (start.z + end.z) / 2
+        );
+        scene.add(centerLine);
+
+        // Bandes latérales (blanches)
+        const sideLinesColor = 0xffffff;
+        [-roadWidth / 2 + 0.2, roadWidth / 2 - 0.2].forEach(offset => {
+            const sideLine = new THREE.Mesh(lineGeometry, new THREE.MeshStandardMaterial({
+                color: sideLinesColor,
+                roughness: 0.5
+            }));
+            sideLine.rotation.x = -Math.PI / 2;
+            sideLine.rotation.z = angle;
+
+            // Offset perpendiculaire à la route
+            const offsetX = -Math.sin(angle) * offset;
+            const offsetZ = Math.cos(angle) * offset;
+
+            sideLine.position.set(
+                (start.x + end.x) / 2 + offsetX,
+                0.03,
+                (start.z + end.z) / 2 + offsetZ
+            );
+            scene.add(sideLine);
+        });
+    }
+
+    console.log('✅ Road created with', roadPath.length - 1, 'segments');
+
+    // ========== 4. CROISEMENT (PERPENDICULAIRE) ==========
+    if (layout.road.crossroad) {
+        const crossroadPath = layout.road.crossroad;
+
+        for (let i = 0; i < crossroadPath.length - 1; i++) {
+            const start = crossroadPath[i];
+            const end = crossroadPath[i + 1];
+
+            // Calculer longueur et angle
+            const dx = end.x - start.x;
+            const dz = end.z - start.z;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            const angle = Math.atan2(dz, dx);
+
+            // Créer segment de route
+            const crossroadGeometry = new THREE.PlaneGeometry(length, roadWidth);
+            const crossroadMaterial = new THREE.MeshStandardMaterial({
+                color: layout.road.color,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            const crossroadSegment = new THREE.Mesh(crossroadGeometry, crossroadMaterial);
+
+            // Positionner et orienter
+            crossroadSegment.rotation.x = -Math.PI / 2;
+            crossroadSegment.rotation.z = angle;
+            crossroadSegment.position.set(
+                (start.x + end.x) / 2,
+                0.02,
+                (start.z + end.z) / 2
+            );
+            crossroadSegment.receiveShadow = true;
+            scene.add(crossroadSegment);
+
+            // Ligne centrale
+            const crossLineGeometry = new THREE.PlaneGeometry(length, layout.road.lineWidth);
+            const crossLineMaterial = new THREE.MeshStandardMaterial({
+                color: layout.road.lineColor,
+                roughness: 0.5,
+                emissive: layout.road.lineColor,
+                emissiveIntensity: 0.2
+            });
+            const crossCenterLine = new THREE.Mesh(crossLineGeometry, crossLineMaterial);
+            crossCenterLine.rotation.x = -Math.PI / 2;
+            crossCenterLine.rotation.z = angle;
+            crossCenterLine.position.set(
+                (start.x + end.x) / 2,
+                0.03,
+                (start.z + end.z) / 2
+            );
+            scene.add(crossCenterLine);
+        }
+
+        console.log('✅ Crossroad created with', crossroadPath.length - 1, 'segments');
+    }
+
+    // Retourner le matériau du sol pour les interactions avec la voiture
+    return floorMaterial;
+}
+
+/**
+ * Crée un cône individuel du Cozy Cone Motel (version détaillée authentique)
+ */
+function createCozyCone(scene, position, color, hasSign = false, number = 1) {
+    const coneGroup = new THREE.Group();
+
+    // ========== DIMENSIONS À L'ÉCHELLE AUTOMOBILE CARS ==========
+    // Basées sur la description détaillée pour accueillir des voitures
+    // Hauteur : 30 pieds = 9,1 mètres (voiture peut se dresser à l'intérieur)
+    // Diamètre base : 22 pieds = 6,7 mètres (voiture peut faire demi-tour)
+    // Diamètre sommet : 7 pieds = 2,13 mètres (ventilation et proportions)
+
+    const HEIGHT = 9.1;
+    const BASE_RADIUS = 3.35;  // 6,7m de diamètre
+    const TOP_RADIUS = 1.065;   // 2,13m de diamètre
+    const SEGMENTS = 32; // Segments pour rendu lisse
+
+    // ========== CÔNE PRINCIPAL (STRUCTURE) ==========
+    const coneGeometry = new THREE.ConeGeometry(BASE_RADIUS, HEIGHT, SEGMENTS);
+    const coneMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.6,
+        metalness: 0.3,
+        envMapIntensity: 0.5
+    });
+    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+    cone.position.y = HEIGHT / 2;
+    cone.castShadow = true;
+    cone.receiveShadow = true;
+    coneGroup.add(cone);
+
+    // ========== SOMMET TRONQUÉ (PLATEFORME TECHNIQUE) ==========
+    const topPlatformGeometry = new THREE.CylinderGeometry(TOP_RADIUS, TOP_RADIUS, 0.15, SEGMENTS);
+    const topPlatformMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(color).multiplyScalar(0.8),
+        roughness: 0.7,
+        metalness: 0.4
+    });
+    const topPlatform = new THREE.Mesh(topPlatformGeometry, topPlatformMaterial);
+    topPlatform.position.y = HEIGHT + 0.075;
+    coneGroup.add(topPlatform);
+
+    // Grille de ventilation sur le sommet
+    const ventGeometry = new THREE.CircleGeometry(TOP_RADIUS * 0.6, 16);
+    const ventMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.8,
+        metalness: 0.7
+    });
+    const vent = new THREE.Mesh(ventGeometry, ventMaterial);
+    vent.rotation.x = -Math.PI / 2;
+    vent.position.y = HEIGHT + 0.16;
+    coneGroup.add(vent);
+
+    // ========== BANDES BLANCHES RÉFLÉCHISSANTES (3 BANDES) ==========
+    // Positionnées proportionnellement sur la hauteur
+    const stripePositions = [3.5, 5.5, 7.5]; // Positions verticales adaptées à 9,1m
+    stripePositions.forEach((yPos, index) => {
+        const radiusAtHeight = BASE_RADIUS - (BASE_RADIUS - TOP_RADIUS) * (yPos / HEIGHT);
+        const stripeGeometry = new THREE.CylinderGeometry(
+            radiusAtHeight + 0.02,
+            radiusAtHeight + 0.02,
+            0.4, // Bandes plus larges pour l'échelle
+            SEGMENTS
+        );
+        const stripeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.3,
+            metalness: 0.5,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.15
+        });
+        const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+        stripe.position.y = yPos;
+        coneGroup.add(stripe);
+    });
+
+    // ========== BASE CIRCULAIRE STABLE ==========
+    const baseGeometry = new THREE.CylinderGeometry(BASE_RADIUS + 0.1, BASE_RADIUS + 0.15, 0.3, SEGMENTS);
+    const baseMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(color).multiplyScalar(0.7),
+        roughness: 0.9,
+        metalness: 0.1
+    });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 0.15;
+    base.receiveShadow = true;
+    coneGroup.add(base);
+
+    // ========== SOL INTÉRIEUR DE STATIONNEMENT ==========
+    // Surface plane pour que les voitures se garent confortablement
+    const interiorFloorGeometry = new THREE.CylinderGeometry(BASE_RADIUS - 0.3, BASE_RADIUS - 0.3, 0.1, 32);
+    const interiorFloorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2a2a2a, // Bitume foncé
+        roughness: 0.95,
+        metalness: 0.1
+    });
+    const interiorFloor = new THREE.Mesh(interiorFloorGeometry, interiorFloorMaterial);
+    interiorFloor.position.y = 0.35;
+    interiorFloor.receiveShadow = true;
+    coneGroup.add(interiorFloor);
+
+    // ========== ENTRÉE AUTOMOBILE GRANDE OUVERTURE ==========
+    // Dimensions : 4m de large x 2,7m de haut (pour voitures Cars)
+    const DOOR_WIDTH = 4.0;  // 13 pieds = 4m
+    const DOOR_HEIGHT = 2.7; // 9 pieds = 2,7m
+    const doorGeometry = new THREE.BoxGeometry(DOOR_WIDTH, DOOR_HEIGHT, 0.2);
+    const doorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a3520,
+        roughness: 0.85,
+        metalness: 0.2
+    });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(0, DOOR_HEIGHT / 2 + 0.3, BASE_RADIUS - 0.15);
+    door.castShadow = true;
+    coneGroup.add(door);
+
+    // Encadrement blanc/crème (d'après image officielle)
+    const doorFrameGeometry = new THREE.BoxGeometry(DOOR_WIDTH + 0.4, DOOR_HEIGHT + 0.4, 0.12);
+    const doorFrameMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf5f5dc, // Beige/crème
+        roughness: 0.6,
+        metalness: 0.2
+    });
+    const doorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
+    doorFrame.position.set(0, DOOR_HEIGHT / 2 + 0.3, BASE_RADIUS - 0.08);
+    coneGroup.add(doorFrame);
+
+    // Cadre intérieur orange (métal)
+    const innerFrameGeometry = new THREE.BoxGeometry(DOOR_WIDTH + 0.2, DOOR_HEIGHT + 0.2, 0.1);
+    const innerFrameMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.5,
+        metalness: 0.6
+    });
+    const innerFrame = new THREE.Mesh(innerFrameGeometry, innerFrameMaterial);
+    innerFrame.position.set(0, DOOR_HEIGHT / 2 + 0.3, BASE_RADIUS - 0.12);
+    coneGroup.add(innerFrame);
+
+    // Poignée/Barre horizontale chromée (style garage automobile)
+    const handleGeometry = new THREE.CylinderGeometry(0.08, 0.08, 2.0, 16);
+    const handleMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4af37,
+        metalness: 0.95,
+        roughness: 0.1
+    });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.set(0, 1.5, BASE_RADIUS - 0.05);
+    handle.rotation.z = Math.PI / 2;
+    coneGroup.add(handle);
+
+    // ========== HUBLOTS LATÉRAUX (FENÊTRES CIRCULAIRES) ==========
+    // 2-3 hublots par cône disposés asymétriquement (d'après image officielle)
+    const portholeRadius = 0.6; // Diamètre ~4 pieds (1.2m), rayon 0.6m
+    const portholePositions = [
+        { angle: Math.PI * 0.35, height: 4.0 },  // Côté gauche milieu
+        { angle: Math.PI * 0.65, height: 6.0 },  // Côté droit haut
+    ];
+
+    portholePositions.forEach(porthole => {
+        // Calculer le rayon du cône à cette hauteur
+        const radiusAtHeight = BASE_RADIUS - (BASE_RADIUS - TOP_RADIUS) * (porthole.height / HEIGHT);
+
+        // Position du hublot sur la surface du cône
+        const x = Math.cos(porthole.angle) * radiusAtHeight;
+        const z = Math.sin(porthole.angle) * radiusAtHeight;
+
+        // Vitre du hublot (verre teinté)
+        const portholeGeometry = new THREE.CircleGeometry(portholeRadius, 16);
+        const portholeMaterial = new THREE.MeshStandardMaterial({
+            color: 0x87ceeb,
+            transparent: true,
+            opacity: 0.6,
+            roughness: 0.2,
+            metalness: 0.8,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.3
+        });
+        const portholeGlass = new THREE.Mesh(portholeGeometry, portholeMaterial);
+
+        // Orienter le hublot perpendiculairement à la surface
+        portholeGlass.position.set(x, porthole.height, z);
+        portholeGlass.lookAt(0, porthole.height, 0);
+        portholeGlass.rotateY(Math.PI);
+        coneGroup.add(portholeGlass);
+
+        // Cadre métallique du hublot
+        const frameRingGeometry = new THREE.TorusGeometry(portholeRadius, 0.08, 8, 16);
+        const frameMaterial = new THREE.MeshStandardMaterial({
+            color: 0x888888,
+            metalness: 0.9,
+            roughness: 0.3
+        });
+        const frameRing = new THREE.Mesh(frameRingGeometry, frameMaterial);
+        frameRing.position.set(x, porthole.height, z);
+        frameRing.lookAt(0, porthole.height, 0);
+        frameRing.rotateY(Math.PI);
+        coneGroup.add(frameRing);
+
+        // Lumière supprimée pour performances (émissif suffit)
+    });
+
+    // ========== ÉCLAIRAGE INTÉRIEUR ==========
+    // Une seule lumière intérieure douce pour performances
+    const coneLight = new THREE.PointLight(0xffd700, 0.4, 15);
+    coneLight.position.set(0, HEIGHT / 2, 0);
+    coneLight.castShadow = false;
+    coneGroup.add(coneLight);
+
+    // ========== ANNEAUX LED PÉRIPHÉRIQUES ==========
+    // Système d'anneaux LED à plusieurs niveaux (effet visuel seulement)
+    const ledLevels = [
+        { y: 2.0, radius: BASE_RADIUS * 0.92, color: 0xff6600 },
+        { y: 4.5, radius: BASE_RADIUS * 0.78, color: 0xff8800 },
+        { y: 7.0, radius: BASE_RADIUS * 0.60, color: 0xffaa00 }
+    ];
+
+    ledLevels.forEach((level, index) => {
+        // Anneau lumineux LED (effet visuel émissif seulement, sans lumières)
+        const ringGeometry = new THREE.TorusGeometry(level.radius, 0.08, 8, 32);
+        const ringMaterial = new THREE.MeshStandardMaterial({
+            color: level.color,
+            emissive: level.color,
+            emissiveIntensity: 0.9,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.y = level.y;
+        ring.rotation.x = Math.PI / 2;
+        coneGroup.add(ring);
+    });
+
+    // ========== ÉCLAIRAGE EXTÉRIEUR ==========
+    // Un seul uplight principal pour performances
+    const mainUplight = new THREE.SpotLight(0xffa500, 0.3, 20, Math.PI / 4, 0.5);
+    mainUplight.position.set(0, 0.2, BASE_RADIUS * 1.15);
+    mainUplight.target.position.set(0, HEIGHT / 2, 0);
+    mainUplight.castShadow = false;
+    coneGroup.add(mainUplight);
+    coneGroup.add(mainUplight.target);
+
+    // Numéro du cône (sur la porte, plus grand pour l'échelle)
+    const numberCanvas = document.createElement('canvas');
+    numberCanvas.width = 256;
+    numberCanvas.height = 256;
+    const numberCtx = numberCanvas.getContext('2d');
+    numberCtx.fillStyle = '#4a3520';
+    numberCtx.fillRect(0, 0, numberCanvas.width, numberCanvas.height);
+    numberCtx.fillStyle = '#ffffff';
+    numberCtx.font = 'bold 180px Arial';
+    numberCtx.textAlign = 'center';
+    numberCtx.textBaseline = 'middle';
+    numberCtx.fillText(number.toString(), numberCanvas.width / 2, numberCanvas.height / 2);
+
+    const numberTexture = new THREE.CanvasTexture(numberCanvas);
+    const numberMaterial = new THREE.MeshBasicMaterial({
+        map: numberTexture,
+        transparent: true
+    });
+    const numberPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 1.5), // Plus grand pour l'échelle
+        numberMaterial
+    );
+    numberPlane.position.set(0, 2.2, BASE_RADIUS - 0.05); // Position ajustée
+    coneGroup.add(numberPlane);
+
+    // Enseigne "VACANCY" si demandé (simplifié pour performances)
+    if (hasSign) {
+        const signGeometry = new THREE.BoxGeometry(5, 1.2, 0.15);
+        const signMaterial = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            emissive: 0xff0066,
+            emissiveIntensity: 1.2
+        });
+        const sign = new THREE.Mesh(signGeometry, signMaterial);
+        sign.position.set(0, HEIGHT + 1.5, 0);
+        sign.castShadow = true;
+        coneGroup.add(sign);
+
+        // Texte VACANCY
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('VACANCY', canvas.width / 2, canvas.height / 2);
+
+        const signTexture = new THREE.CanvasTexture(canvas);
+        const textMaterial = new THREE.MeshBasicMaterial({
+            map: signTexture,
+            transparent: true
+        });
+        const textMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(4.5, 1),
+            textMaterial
+        );
+        textMesh.position.set(0, HEIGHT + 1.5, 0.08);
+        coneGroup.add(textMesh);
+
+        // Une seule lumière néon pour performances
+        const neonLight = new THREE.PointLight(0xff0066, 0.5, 12);
+        neonLight.position.set(0, HEIGHT + 1.5, 0.5);
+        neonLight.castShadow = false;
+        coneGroup.add(neonLight);
+    }
+
+    coneGroup.position.copy(position);
+    scene.add(coneGroup);
+
+    return coneGroup;
+}
+
+/**
+ * Crée la terrasse individuelle et le mobilier pour un cône spécifique
+ */
+function createConeIndividualPatio(scene, conePosition, number) {
+    const patioGroup = new THREE.Group();
+
+    // ========== TERRASSE PAVÉE INDIVIDUELLE ==========
+    const patioWidth = 2.5;
+    const patioDepth = 1.8;
+    const patioGeometry = new THREE.BoxGeometry(patioWidth, 0.08, patioDepth);
+    const patioMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b7355, // Pavé désertique
+        roughness: 0.9,
+        metalness: 0.1
+    });
+    const patio = new THREE.Mesh(patioGeometry, patioMaterial);
+    patio.position.set(conePosition.x, 0.04, conePosition.z + 2);
+    patio.receiveShadow = true;
+    scene.add(patio);
+
+    // Bordure en pierre
+    const borderMaterial = new THREE.MeshStandardMaterial({
+        color: 0xa0826d,
+        roughness: 0.95
+    });
+
+    // Bordures latérales
+    [-patioWidth / 2, patioWidth / 2].forEach(xOffset => {
+        const borderGeometry = new THREE.BoxGeometry(0.1, 0.15, patioDepth);
+        const border = new THREE.Mesh(borderGeometry, borderMaterial);
+        border.position.set(conePosition.x + xOffset, 0.075, conePosition.z + 2);
+        scene.add(border);
+    });
+
+    // ========== CHAISE LONGUE INDIVIDUELLE ==========
+    const chairGroup = new THREE.Group();
+
+    // Cadre turquoise
+    const frameMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4ecdc4,
+        metalness: 0.7,
+        roughness: 0.4
+    });
+
+    // Assise
+    const seatGeometry = new THREE.BoxGeometry(0.7, 0.08, 1);
+    const seat = new THREE.Mesh(seatGeometry, frameMaterial);
+    seat.position.y = 0.25;
+    seat.castShadow = true;
+    chairGroup.add(seat);
+
+    // Dossier incliné
+    const backGeometry = new THREE.BoxGeometry(0.7, 0.08, 0.8);
+    const back = new THREE.Mesh(backGeometry, frameMaterial);
+    back.position.set(0, 0.45, -0.3);
+    back.rotation.x = -Math.PI / 6;
+    back.castShadow = true;
+    chairGroup.add(back);
+
+    // Pieds (4)
+    const legGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.25, 8);
+    [-0.3, 0.3].forEach(x => {
+        [-0.4, 0.4].forEach(z => {
+            const leg = new THREE.Mesh(legGeometry, frameMaterial);
+            leg.position.set(x, 0.125, z);
+            leg.castShadow = true;
+            chairGroup.add(leg);
+        });
+    });
+
+    // Coussin orange
+    const cushionMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff9a56,
+        roughness: 0.9
+    });
+    const cushionGeometry = new THREE.BoxGeometry(0.65, 0.1, 0.95);
+    const cushion = new THREE.Mesh(cushionGeometry, cushionMaterial);
+    cushion.position.y = 0.3;
+    cushion.castShadow = true;
+    chairGroup.add(cushion);
+
+    chairGroup.position.set(conePosition.x - 0.6, 0, conePosition.z + 2.2);
+    chairGroup.rotation.y = -Math.PI / 8;
+    scene.add(chairGroup);
+
+    // ========== TABLE D'APPOINT ==========
+    const tableGroup = new THREE.Group();
+
+    // Plateau rond
+    const topGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
+    const topMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.5,
+        metalness: 0.3
+    });
+    const top = new THREE.Mesh(topGeometry, topMaterial);
+    top.position.y = 0.4;
+    top.castShadow = true;
+    tableGroup.add(top);
+
+    // Pied central chromé
+    const legGeometry2 = new THREE.CylinderGeometry(0.03, 0.05, 0.4, 8);
+    const legMaterial = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        metalness: 0.8,
+        roughness: 0.2
+    });
+    const leg = new THREE.Mesh(legGeometry2, legMaterial);
+    leg.position.y = 0.2;
+    leg.castShadow = true;
+    tableGroup.add(leg);
+
+    // Base ronde
+    const baseGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.03, 16);
+    const base = new THREE.Mesh(baseGeometry, legMaterial);
+    base.position.y = 0.015;
+    tableGroup.add(base);
+
+    tableGroup.position.set(conePosition.x + 0.6, 0, conePosition.z + 2.2);
+    scene.add(tableGroup);
+
+    // ========== POT DE FLEURS DÉCORATIF ==========
+    const potGroup = new THREE.Group();
+
+    // Pot en terre cuite
+    const potGeometry = new THREE.CylinderGeometry(0.12, 0.1, 0.2, 12);
+    const potMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+        roughness: 0.9
+    });
+    const pot = new THREE.Mesh(potGeometry, potMaterial);
+    pot.position.y = 0.1;
+    pot.castShadow = true;
+    potGroup.add(pot);
+
+    // Cactus miniature
+    const miniCactusGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+    const miniCactusMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2d5016,
+        roughness: 0.9
+    });
+    const miniCactus = new THREE.Mesh(miniCactusGeometry, miniCactusMaterial);
+    miniCactus.position.y = 0.25;
+    miniCactus.castShadow = true;
+    potGroup.add(miniCactus);
+
+    // Positionner sur la table
+    potGroup.position.set(conePosition.x + 0.6, 0.45, conePosition.z + 2.2);
+    scene.add(potGroup);
+
+    console.log(`  ✅ Individual patio created for Cone ${number}`);
+}
+
+/**
+ * Crée le parking/terrasse du Cozy Cone Motel avec places numérotées
+ */
+function createCozyConePatio(scene, position) {
+    const patioGroup = new THREE.Group();
+
+    // ========== PLATEFORME EN BÉTON ==========
+    const patioWidth = 28;
+    const patioDepth = 6;
+    const patioGeometry = new THREE.BoxGeometry(patioWidth, 0.15, patioDepth);
+    const patioMaterial = new THREE.MeshStandardMaterial({
+        color: 0x555555, // Béton gris
+        roughness: 0.85,
+        metalness: 0.1
+    });
+    const patio = new THREE.Mesh(patioGeometry, patioMaterial);
+    patio.position.y = 0.075;
+    patio.receiveShadow = true;
+    patioGroup.add(patio);
+
+    // ========== BORDURES DU PARKING ==========
+    const curbHeight = 0.2;
+    const curbDepth = 0.3;
+    const curbMaterial = new THREE.MeshStandardMaterial({
+        color: 0xcccccc, // Béton clair
+        roughness: 0.9
+    });
+
+    // Bordure avant
+    const frontCurbGeometry = new THREE.BoxGeometry(patioWidth, curbHeight, curbDepth);
+    const frontCurb = new THREE.Mesh(frontCurbGeometry, curbMaterial);
+    frontCurb.position.set(0, curbHeight / 2, patioDepth / 2);
+    patioGroup.add(frontCurb);
+
+    // Bordure arrière
+    const backCurb = new THREE.Mesh(frontCurbGeometry, curbMaterial);
+    backCurb.position.set(0, curbHeight / 2, -patioDepth / 2);
+    patioGroup.add(backCurb);
+
+    // ========== PLACES DE STATIONNEMENT (5 places numérotées) ==========
+    const parkingSpaceWidth = 4.5;
+    const lineWidth = 0.15;
+    const lineMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff, // Lignes blanches
+        roughness: 0.6,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.1
+    });
+
+    // Créer 6 lignes verticales pour délimiter 5 places
+    for (let i = 0; i <= 5; i++) {
+        const lineGeometry = new THREE.PlaneGeometry(lineWidth, patioDepth - 0.6);
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.rotation.x = -Math.PI / 2;
+        line.position.set(
+            -patioWidth / 2 + i * parkingSpaceWidth + (patioWidth - 5 * parkingSpaceWidth) / 2,
+            0.16,
+            0
+        );
+        patioGroup.add(line);
+    }
+
+    // Ligne horizontale à l'arrière des places
+    const backLineGeometry = new THREE.PlaneGeometry(patioWidth - 1, lineWidth);
+    const backLine = new THREE.Mesh(backLineGeometry, lineMaterial);
+    backLine.rotation.x = -Math.PI / 2;
+    backLine.position.set(0, 0.16, -patioDepth / 2 + 0.5);
+    patioGroup.add(backLine);
+
+    // ========== NUMÉROS DE PLACES (1-5) ==========
+    for (let i = 1; i <= 5; i++) {
+        const numberCanvas = document.createElement('canvas');
+        numberCanvas.width = 128;
+        numberCanvas.height = 128;
+        const ctx = numberCanvas.getContext('2d');
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(0, 0, numberCanvas.width, numberCanvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 100px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(i.toString(), numberCanvas.width / 2, numberCanvas.height / 2);
+
+        const numberTexture = new THREE.CanvasTexture(numberCanvas);
+        const numberMaterial = new THREE.MeshBasicMaterial({
+            map: numberTexture,
+            transparent: true
+        });
+        const numberPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(1, 1),
+            numberMaterial
+        );
+        numberPlane.rotation.x = -Math.PI / 2;
+        numberPlane.position.set(
+            -patioWidth / 2 + (i - 0.5) * parkingSpaceWidth + (patioWidth - 5 * parkingSpaceWidth) / 2,
+            0.17,
+            patioDepth / 2 - 1.5
+        );
+        patioGroup.add(numberPlane);
+    }
+
+    // ========== BUTÉES DE STATIONNEMENT ==========
+    const bumpWidth = 3.5;
+    const bumpHeight = 0.15;
+    const bumpDepth = 0.3;
+    const bumpGeometry = new THREE.BoxGeometry(bumpWidth, bumpHeight, bumpDepth);
+    const bumpMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffdd00, // Jaune
+        roughness: 0.8
+    });
+
+    for (let i = 1; i <= 5; i++) {
+        const bump = new THREE.Mesh(bumpGeometry, bumpMaterial);
+        bump.position.set(
+            -patioWidth / 2 + (i - 0.5) * parkingSpaceWidth + (patioWidth - 5 * parkingSpaceWidth) / 2,
+            bumpHeight / 2,
+            -patioDepth / 2 + 0.8
+        );
+        bump.castShadow = true;
+        patioGroup.add(bump);
+    }
+
+    // ========== ÉCLAIRAGE DU PARKING ==========
+    // Lampadaires de chaque côté
+    const lampPositions = [
+        { x: -patioWidth / 2 - 1, z: 0 },
+        { x: patioWidth / 2 + 1, z: 0 }
+    ];
+
+    lampPositions.forEach(pos => {
+        // Poteau
+        const poleGeometry = new THREE.CylinderGeometry(0.08, 0.1, 3.5, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222,
+            roughness: 0.6,
+            metalness: 0.5
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(pos.x, 1.75, pos.z);
+        pole.castShadow = true;
+        patioGroup.add(pole);
+
+        // Lampe
+        const lampGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+        const lampMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.8
+        });
+        const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+        lamp.position.set(pos.x, 3.5, pos.z);
+        patioGroup.add(lamp);
+
+        // Lumière
+        const light = new THREE.PointLight(0xffaa00, 2, 15);
+        light.position.set(pos.x, 3.5, pos.z);
+        light.castShadow = true;
+        patioGroup.add(light);
+    });
+
+    patioGroup.position.copy(position);
+    scene.add(patioGroup);
+
+    console.log('  ✅ Parking/Terrasse created with 5 numbered spaces');
+    return patioGroup;
+}
+
+/**
+ * Crée le mobilier extérieur du Cozy Cone Motel (chaises longues, tables, parasols)
+ */
+function createCozyConeFurniture(scene) {
+    console.log('  🪑 Adding outdoor furniture to Cozy Cone Motel...');
+
+    // ========== CHAISES LONGUES (4) ==========
+    const loungeChairPositions = [
+        { x: -12, z: -108, rotation: 0 },
+        { x: -8, z: -108, rotation: 0 },
+        { x: 8, z: -108, rotation: 0 },
+        { x: 12, z: -108, rotation: 0 }
+    ];
+
+    loungeChairPositions.forEach(pos => {
+        const chairGroup = new THREE.Group();
+
+        // Structure de la chaise (métal)
+        const frameMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4ecdc4, // Turquoise (couleur du motel)
+            metalness: 0.7,
+            roughness: 0.4
+        });
+
+        // Dossier
+        const backGeometry = new THREE.BoxGeometry(1.2, 1.5, 0.1);
+        const back = new THREE.Mesh(backGeometry, frameMaterial);
+        back.position.set(0, 0.75, -0.4);
+        back.rotation.x = -Math.PI / 12;
+        back.castShadow = true;
+        chairGroup.add(back);
+
+        // Assise
+        const seatGeometry = new THREE.BoxGeometry(1.2, 0.1, 1.5);
+        const seat = new THREE.Mesh(seatGeometry, frameMaterial);
+        seat.position.set(0, 0.3, 0);
+        seat.castShadow = true;
+        chairGroup.add(seat);
+
+        // Pieds (4)
+        const legGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8);
+        const legPositions = [
+            { x: -0.5, z: -0.6 },
+            { x: 0.5, z: -0.6 },
+            { x: -0.5, z: 0.6 },
+            { x: 0.5, z: 0.6 }
+        ];
+
+        legPositions.forEach(legPos => {
+            const leg = new THREE.Mesh(legGeometry, frameMaterial);
+            leg.position.set(legPos.x, 0.15, legPos.z);
+            leg.castShadow = true;
+            chairGroup.add(leg);
+        });
+
+        // Coussin
+        const cushionMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff9a56, // Orange comme les cônes
+            roughness: 0.9
+        });
+        const cushionGeometry = new THREE.BoxGeometry(1.1, 0.15, 1.4);
+        const cushion = new THREE.Mesh(cushionGeometry, cushionMaterial);
+        cushion.position.set(0, 0.38, 0);
+        cushion.castShadow = true;
+        chairGroup.add(cushion);
+
+        chairGroup.position.set(pos.x, 0, pos.z);
+        chairGroup.rotation.y = pos.rotation;
+        scene.add(chairGroup);
+    });
+
+    // ========== TABLES BASSES (2) ==========
+    const tablePositions = [
+        { x: -10, z: -107.5 },
+        { x: 10, z: -107.5 }
+    ];
+
+    tablePositions.forEach(pos => {
+        const tableGroup = new THREE.Group();
+
+        // Plateau de table
+        const topGeometry = new THREE.CylinderGeometry(0.6, 0.6, 0.1, 16);
+        const topMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.5,
+            metalness: 0.3
+        });
+        const top = new THREE.Mesh(topGeometry, topMaterial);
+        top.position.y = 0.5;
+        top.castShadow = true;
+        tableGroup.add(top);
+
+        // Pied central
+        const legGeometry = new THREE.CylinderGeometry(0.05, 0.08, 0.5, 8);
+        const legMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222,
+            metalness: 0.6,
+            roughness: 0.4
+        });
+        const leg = new THREE.Mesh(legGeometry, legMaterial);
+        leg.position.y = 0.25;
+        leg.castShadow = true;
+        tableGroup.add(leg);
+
+        // Base
+        const baseGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 16);
+        const base = new THREE.Mesh(baseGeometry, legMaterial);
+        base.position.y = 0.025;
+        tableGroup.add(base);
+
+        tableGroup.position.set(pos.x, 0, pos.z);
+        scene.add(tableGroup);
+    });
+
+    // ========== PARASOLS (2) ==========
+    const umbrellaPositions = [
+        { x: -10, z: -107.5 },
+        { x: 10, z: -107.5 }
+    ];
+
+    umbrellaPositions.forEach(pos => {
+        const umbrellaGroup = new THREE.Group();
+
+        // Mât
+        const poleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.8
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.y = 1.25;
+        pole.castShadow = true;
+        umbrellaGroup.add(pole);
+
+        // Toile du parasol (cône inversé)
+        const canopyGeometry = new THREE.ConeGeometry(1.2, 0.8, 8);
+        const canopyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffaa00, // Orange/jaune
+            roughness: 0.8,
+            side: THREE.DoubleSide
+        });
+        const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
+        canopy.position.y = 2.9;
+        canopy.rotation.x = Math.PI;
+        canopy.castShadow = true;
+        canopy.receiveShadow = true;
+        umbrellaGroup.add(canopy);
+
+        // Bandes sur le parasol
+        for (let i = 0; i < 4; i++) {
+            const stripeGeometry = new THREE.ConeGeometry(1.18, 0.15, 8);
+            const stripeMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff6600,
+                roughness: 0.8
+            });
+            const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+            stripe.position.y = 2.9 - i * 0.2;
+            stripe.rotation.x = Math.PI;
+            umbrellaGroup.add(stripe);
+        }
+
+        umbrellaGroup.position.set(pos.x, 0, pos.z);
+        scene.add(umbrellaGroup);
+    });
+
+    // ========== PANNEAUX "NO VACANCY" / "POOL" ==========
+    // Petit panneau "POOL" pointant vers l'arrière
+    const poolSignGroup = new THREE.Group();
+
+    const signBoardGeometry = new THREE.BoxGeometry(1.5, 0.8, 0.1);
+    const signBoardMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4ecdc4,
+        roughness: 0.6
+    });
+    const signBoard = new THREE.Mesh(signBoardGeometry, signBoardMaterial);
+    signBoard.position.y = 1.5;
+    poolSignGroup.add(signBoard);
+
+    // Poteau
+    const signPoleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 8);
+    const signPoleMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        roughness: 0.8
+    });
+    const signPole = new THREE.Mesh(signPoleGeometry, signPoleMaterial);
+    signPole.position.y = 0.75;
+    poolSignGroup.add(signPole);
+
+    // Texte "POOL"
+    const poolCanvas = document.createElement('canvas');
+    poolCanvas.width = 256;
+    poolCanvas.height = 128;
+    const poolCtx = poolCanvas.getContext('2d');
+    poolCtx.fillStyle = '#4ecdc4';
+    poolCtx.fillRect(0, 0, poolCanvas.width, poolCanvas.height);
+    poolCtx.fillStyle = '#ffffff';
+    poolCtx.font = 'bold 80px Arial';
+    poolCtx.textAlign = 'center';
+    poolCtx.textBaseline = 'middle';
+    poolCtx.fillText('POOL →', poolCanvas.width / 2, poolCanvas.height / 2);
+
+    const poolTexture = new THREE.CanvasTexture(poolCanvas);
+    const poolTextMaterial = new THREE.MeshBasicMaterial({
+        map: poolTexture,
+        transparent: true
+    });
+    const poolTextPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.4, 0.7),
+        poolTextMaterial
+    );
+    poolTextPlane.position.set(0, 1.5, 0.06);
+    poolSignGroup.add(poolTextPlane);
+
+    poolSignGroup.position.set(-14, 0, -105);
+    poolSignGroup.rotation.y = Math.PI / 6;
+    scene.add(poolSignGroup);
+
+    // ========== PETITS DÉTAILS (cendriers, plantes) ==========
+    // Pots de fleurs près de certains cônes
+    const plantPositions = [
+        { x: -10.5, z: -98 },
+        { x: 0, z: -98 },
+        { x: 10.5, z: -98 }
+    ];
+
+    plantPositions.forEach(pos => {
+        const potGroup = new THREE.Group();
+
+        // Pot
+        const potGeometry = new THREE.CylinderGeometry(0.25, 0.2, 0.4, 8);
+        const potMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.9
+        });
+        const pot = new THREE.Mesh(potGeometry, potMaterial);
+        pot.position.y = 0.2;
+        pot.castShadow = true;
+        potGroup.add(pot);
+
+        // Plante (cactus miniature)
+        const plantGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+        const plantMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d5016,
+            roughness: 0.9
+        });
+        const plant = new THREE.Mesh(plantGeometry, plantMaterial);
+        plant.position.y = 0.5;
+        plant.castShadow = true;
+        potGroup.add(plant);
+
+        potGroup.position.set(pos.x, 0, pos.z);
+        scene.add(potGroup);
+    });
+
+    console.log('  ✅ Outdoor furniture added: 4 lounge chairs, 2 tables, 2 umbrellas, signs & plants');
+}
+
+/**
+ * Crée le bureau de réception/office du Cozy Cone Motel
+ */
+function createCozyConeoOffice(scene, position) {
+    const officeGroup = new THREE.Group();
+
+    // ========== BÂTIMENT PRINCIPAL ==========
+    const buildingGeometry = new THREE.BoxGeometry(6, 4, 5);
+    const buildingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4ecdc4, // Turquoise (couleur du motel)
+        roughness: 0.7,
+        metalness: 0.2
+    });
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+    building.position.y = 2;
+    building.castShadow = true;
+    building.receiveShadow = true;
+    officeGroup.add(building);
+
+    // ========== TOIT PLAT ==========
+    const roofGeometry = new THREE.BoxGeometry(6.5, 0.3, 5.5);
+    const roofMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff9a56, // Orange
+        roughness: 0.8
+    });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 4.15;
+    roof.castShadow = true;
+    officeGroup.add(roof);
+
+    // ========== GRANDE FENÊTRE DE RÉCEPTION ==========
+    const windowGeometry = new THREE.BoxGeometry(4, 2, 0.1);
+    const windowMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        transparent: true,
+        opacity: 0.7,
+        roughness: 0.2
+    });
+    const window = new THREE.Mesh(windowGeometry, windowMaterial);
+    window.position.set(0, 2.5, 2.55);
+    officeGroup.add(window);
+
+    // Cadre de fenêtre
+    const frameGeometry = new THREE.BoxGeometry(4.2, 2.2, 0.05);
+    const frameMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.6
+    });
+    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+    frame.position.set(0, 2.5, 2.58);
+    officeGroup.add(frame);
+
+    // ========== PORTE ==========
+    const doorGeometry = new THREE.BoxGeometry(1.5, 2.5, 0.2);
+    const doorMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff9a56,
+        roughness: 0.8
+    });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(-2, 1.25, 2.5);
+    door.castShadow = true;
+    officeGroup.add(door);
+
+    // Poignée de porte
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
+    const handleMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4af37,
+        metalness: 0.9,
+        roughness: 0.2
+    });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.set(-2.5, 1.25, 2.55);
+    handle.rotation.z = Math.PI / 2;
+    officeGroup.add(handle);
+
+    // ========== PANNEAU "OFFICE" ==========
+    const signGeometry = new THREE.BoxGeometry(3, 1, 0.1);
+    const signMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff9a56,
+        emissive: 0xff6600,
+        emissiveIntensity: 0.5,
+        roughness: 0.6
+    });
+    const sign = new THREE.Mesh(signGeometry, signMaterial);
+    sign.position.set(0, 5, 0);
+    sign.castShadow = true;
+    officeGroup.add(sign);
+
+    // Texte "OFFICE"
+    const officeCanvas = document.createElement('canvas');
+    officeCanvas.width = 512;
+    officeCanvas.height = 256;
+    const officeCtx = officeCanvas.getContext('2d');
+    officeCtx.fillStyle = '#ff9a56';
+    officeCtx.fillRect(0, 0, officeCanvas.width, officeCanvas.height);
+    officeCtx.fillStyle = '#ffffff';
+    officeCtx.font = 'bold 100px Arial';
+    officeCtx.textAlign = 'center';
+    officeCtx.textBaseline = 'middle';
+    officeCtx.fillText('OFFICE', officeCanvas.width / 2, officeCanvas.height / 2);
+
+    const officeTexture = new THREE.CanvasTexture(officeCanvas);
+    const officeTextMaterial = new THREE.MeshBasicMaterial({
+        map: officeTexture,
+        transparent: true
+    });
+    const officeTextPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.8, 0.9),
+        officeTextMaterial
+    );
+    officeTextPlane.position.set(0, 5, 0.06);
+    officeGroup.add(officeTextPlane);
+
+    // ========== COMPTOIR DE RÉCEPTION (visible par la fenêtre) ==========
+    const counterGeometry = new THREE.BoxGeometry(3.5, 1, 1.5);
+    const counterMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+        roughness: 0.7
+    });
+    const counter = new THREE.Mesh(counterGeometry, counterMaterial);
+    counter.position.set(0, 1, 1);
+    counter.castShadow = true;
+    officeGroup.add(counter);
+
+    // Plateau du comptoir
+    const counterTopGeometry = new THREE.BoxGeometry(3.6, 0.1, 1.6);
+    const counterTopMaterial = new THREE.MeshStandardMaterial({
+        color: 0xa0522d,
+        roughness: 0.5,
+        metalness: 0.2
+    });
+    const counterTop = new THREE.Mesh(counterTopGeometry, counterTopMaterial);
+    counterTop.position.set(0, 1.55, 1);
+    officeGroup.add(counterTop);
+
+    // ========== CLOCHE DE RÉCEPTION ==========
+    const bellBaseGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.05, 16);
+    const bellMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4af37,
+        metalness: 0.9,
+        roughness: 0.2
+    });
+    const bellBase = new THREE.Mesh(bellBaseGeometry, bellMaterial);
+    bellBase.position.set(-1, 1.63, 1.5);
+    officeGroup.add(bellBase);
+
+    const bellTopGeometry = new THREE.SphereGeometry(0.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const bellTop = new THREE.Mesh(bellTopGeometry, bellMaterial);
+    bellTop.position.set(-1, 1.68, 1.5);
+    officeGroup.add(bellTop);
+
+    // ========== TÉLÉPHONE RÉTRO ==========
+    const phoneBaseGeometry = new THREE.BoxGeometry(0.25, 0.15, 0.35);
+    const phoneMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        roughness: 0.6
+    });
+    const phoneBase = new THREE.Mesh(phoneBaseGeometry, phoneMaterial);
+    phoneBase.position.set(0.8, 1.63, 1.3);
+    officeGroup.add(phoneBase);
+
+    // Combiné
+    const handsetGeometry = new THREE.CapsuleGeometry(0.05, 0.25, 4, 8);
+    const handset = new THREE.Mesh(handsetGeometry, phoneMaterial);
+    handset.position.set(0.8, 1.73, 1.3);
+    handset.rotation.z = Math.PI / 2;
+    officeGroup.add(handset);
+
+    // ========== ÉCLAIRAGE ==========
+    // Lumière intérieure visible par la fenêtre
+    const interiorLight = new THREE.PointLight(0xffd700, 2, 8);
+    interiorLight.position.set(0, 2.5, 0);
+    officeGroup.add(interiorLight);
+
+    // Lumière du panneau OFFICE
+    const signLight = new THREE.PointLight(0xff6600, 1.5, 10);
+    signLight.position.set(0, 5, 0.5);
+    officeGroup.add(signLight);
+
+    // Lumière extérieure au-dessus de la porte
+    const doorLight = new THREE.PointLight(0xffaa00, 1, 5);
+    doorLight.position.set(-2, 3.5, 2.8);
+    officeGroup.add(doorLight);
+
+    // ========== AUVENT AU-DESSUS DE LA PORTE ==========
+    const awningGeometry = new THREE.BoxGeometry(2, 0.1, 1);
+    const awningMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff6600,
+        roughness: 0.8
+    });
+    const awning = new THREE.Mesh(awningGeometry, awningMaterial);
+    awning.position.set(-2, 3.5, 3);
+    awning.castShadow = true;
+    officeGroup.add(awning);
+
+    // Supports de l'auvent
+    const supportGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+    const supportMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        metalness: 0.7,
+        roughness: 0.4
+    });
+
+    [-0.8, 0.8].forEach(xOffset => {
+        const support = new THREE.Mesh(supportGeometry, supportMaterial);
+        support.position.set(-2 + xOffset, 3, 3.3);
+        officeGroup.add(support);
+    });
+
+    officeGroup.position.copy(position);
+    scene.add(officeGroup);
+
+    console.log('  ✅ Office building created with reception desk and amenities');
+    return officeGroup;
+}
+
+/**
+ * Ajoute des décorations désertiques autour du Cozy Cone Motel (cactus, pierres, buissons)
+ */
+function createCozyConeDesertDecor(scene) {
+    console.log('  🌵 Adding desert decorations around Cozy Cone Motel...');
+
+    // ========== CACTUS AUTOUR DU MOTEL ==========
+    const cactusPositions = [
+        // Autour du parking
+        { x: -18, z: -108, scale: 1.2 },
+        { x: 18, z: -108, scale: 1.0 },
+        { x: -20, z: -103, scale: 0.8 },
+        { x: 20, z: -103, scale: 1.1 },
+        // Derrière les cônes
+        { x: -12, z: -97, scale: 0.9 },
+        { x: 12, z: -97, scale: 1.3 },
+        // Près de l'office
+        { x: 18, z: -92, scale: 1.0 },
+        { x: 20, z: -98, scale: 0.7 }
+    ];
+
+    cactusPositions.forEach(pos => {
+        const cactusGroup = new THREE.Group();
+        const scale = pos.scale;
+
+        // Corps principal du cactus (saguaro)
+        const bodyGeometry = new THREE.CylinderGeometry(0.3 * scale, 0.4 * scale, 3 * scale, 8);
+        const cactusMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d5016,
+            roughness: 0.95,
+            metalness: 0
+        });
+        const body = new THREE.Mesh(bodyGeometry, cactusMaterial);
+        body.position.y = 1.5 * scale;
+        body.castShadow = true;
+        cactusGroup.add(body);
+
+        // Bras gauche
+        const armGeometry = new THREE.CylinderGeometry(0.2 * scale, 0.2 * scale, 1.5 * scale, 8);
+        const leftArm = new THREE.Mesh(armGeometry, cactusMaterial);
+        leftArm.position.set(-0.5 * scale, 2 * scale, 0);
+        leftArm.rotation.z = Math.PI / 4;
+        leftArm.castShadow = true;
+        cactusGroup.add(leftArm);
+
+        // Bras droit
+        const rightArm = new THREE.Mesh(armGeometry, cactusMaterial);
+        rightArm.position.set(0.5 * scale, 2.3 * scale, 0);
+        rightArm.rotation.z = -Math.PI / 5;
+        rightArm.castShadow = true;
+        cactusGroup.add(rightArm);
+
+        // Fleur sur le sommet (détail authentique)
+        if (Math.random() > 0.5) {
+            const flowerGeometry = new THREE.SphereGeometry(0.15 * scale, 8, 8);
+            const flowerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff69b4,
+                emissive: 0xff69b4,
+                emissiveIntensity: 0.2,
+                roughness: 0.6
+            });
+            const flower = new THREE.Mesh(flowerGeometry, flowerMaterial);
+            flower.position.y = 3 * scale;
+            cactusGroup.add(flower);
+        }
+
+        cactusGroup.position.set(pos.x, 0, pos.z);
+        cactusGroup.rotation.y = Math.random() * Math.PI * 2;
+        scene.add(cactusGroup);
+    });
+
+    // ========== ROCHERS DÉSERTIQUES ==========
+    const rockPositions = [
+        // Autour du motel
+        { x: -16, z: -110, scale: 1.5, color: 0xb87356 },
+        { x: 16, z: -110, scale: 1.2, color: 0xa67753 },
+        { x: -22, z: -100, scale: 1.8, color: 0x8b7355 },
+        { x: 22, z: -100, scale: 1.4, color: 0xb87356 },
+        // Près de l'office
+        { x: 19, z: -94, scale: 1.0, color: 0xa67753 },
+        { x: 17, z: -90, scale: 0.8, color: 0x9b8468 },
+        // Derrière les cônes
+        { x: -8, z: -96, scale: 0.9, color: 0xa67753 },
+        { x: 8, z: -96, scale: 1.1, color: 0xb87356 }
+    ];
+
+    rockPositions.forEach(pos => {
+        const rockGroup = new THREE.Group();
+
+        // Rocher principal (forme irrégulière)
+        const rockGeometry = new THREE.DodecahedronGeometry(pos.scale, 0);
+        const rockMaterial = new THREE.MeshStandardMaterial({
+            color: pos.color,
+            roughness: 0.95,
+            metalness: 0
+        });
+        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+        rock.position.y = pos.scale * 0.7;
+        rock.rotation.set(
+            Math.random() * Math.PI,
+            Math.random() * Math.PI,
+            Math.random() * Math.PI
+        );
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        rockGroup.add(rock);
+
+        // Petit rocher d'accompagnement
+        if (Math.random() > 0.6) {
+            const smallRockGeometry = new THREE.IcosahedronGeometry(pos.scale * 0.4, 0);
+            const smallRock = new THREE.Mesh(smallRockGeometry, rockMaterial);
+            smallRock.position.set(
+                pos.scale * 0.8,
+                pos.scale * 0.2,
+                pos.scale * 0.5
+            );
+            smallRock.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+            smallRock.castShadow = true;
+            rockGroup.add(smallRock);
+        }
+
+        rockGroup.position.set(pos.x, 0, pos.z);
+        scene.add(rockGroup);
+    });
+
+    // ========== BUISSONS ROULANTS (TUMBLEWEEDS) ==========
+    const tumbleweedPositions = [
+        { x: -14, z: -102 },
+        { x: 14, z: -104 },
+        { x: 10, z: -92 }
+    ];
+
+    tumbleweedPositions.forEach(pos => {
+        const tumbleweedGroup = new THREE.Group();
+
+        // Sphère avec branches
+        const geometry = new THREE.IcosahedronGeometry(0.5, 0);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x8b7355,
+            roughness: 0.95,
+            wireframe: true
+        });
+        const tumbleweed = new THREE.Mesh(geometry, material);
+        tumbleweed.position.y = 0.5;
+        tumbleweed.castShadow = true;
+        tumbleweedGroup.add(tumbleweed);
+
+        tumbleweedGroup.position.set(pos.x, 0, pos.z);
+        scene.add(tumbleweedGroup);
+    });
+
+    // ========== HERBES DÉSERTIQUES ==========
+    const grassPositions = [
+        { x: -15, z: -105 },
+        { x: 15, z: -105 },
+        { x: -12, z: -98 },
+        { x: 12, z: -98 },
+        { x: 18, z: -96 }
+    ];
+
+    grassPositions.forEach(pos => {
+        const grassGroup = new THREE.Group();
+
+        // Créer plusieurs brins d'herbe
+        for (let i = 0; i < 8; i++) {
+            const bladeGeometry = new THREE.PlaneGeometry(0.05, 0.6);
+            const bladeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x9b8468,
+                side: THREE.DoubleSide,
+                roughness: 0.9
+            });
+            const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+            blade.position.set(
+                (Math.random() - 0.5) * 0.5,
+                0.3,
+                (Math.random() - 0.5) * 0.5
+            );
+            blade.rotation.y = Math.random() * Math.PI * 2;
+            blade.rotation.z = Math.random() * 0.2 - 0.1;
+            grassGroup.add(blade);
+        }
+
+        grassGroup.position.set(pos.x, 0, pos.z);
+        scene.add(grassGroup);
+    });
+
+    // ========== PANNEAU EN BOIS TOMBÉ ==========
+    const fallenSignGroup = new THREE.Group();
+
+    const signBoardGeometry = new THREE.BoxGeometry(2, 1, 0.1);
+    const signBoardMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+        roughness: 0.9
+    });
+    const signBoard = new THREE.Mesh(signBoardGeometry, signBoardMaterial);
+    signBoard.rotation.x = -Math.PI / 2;
+    signBoard.rotation.z = Math.PI / 8;
+    signBoard.position.y = 0.05;
+    fallenSignGroup.add(signBoard);
+
+    // Poteau cassé
+    const poleGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.5, 8);
+    const pole = new THREE.Mesh(poleGeometry, signBoardMaterial);
+    pole.position.set(-0.5, 0.3, 0.3);
+    pole.rotation.z = Math.PI / 6;
+    fallenSignGroup.add(pole);
+
+    fallenSignGroup.position.set(-20, 0, -106);
+    scene.add(fallenSignGroup);
+
+    console.log('  ✅ Desert decorations added: cactus, rocks, tumbleweeds, grass and fallen sign');
+}
+
+/**
+ * Crée les placeholders des bâtiments de Radiator Springs
+ */
+export function createRadiatorSpringsBuildings(scene, world, objects) {
+    console.log('🏘️ Creating Radiator Springs buildings - CLEANED VERSION...');
+
+    const buildings = RadiatorSpringsLayout.buildings;
+    const buildingMeshes = [];
+
+    buildings.forEach(building => {
+        // NETTOYÉ : Créer seulement des placeholders simples
+        if (building.id === 'cozy-cone-motel') {
+            console.log('  🏨 Creating detailed Cozy Cone Motel...');
+
+            // Créer 5 cônes en arc de cercle (d'après image officielle)
+            // Espacement : 15-20 pieds (4.6-6.1m) entre chaque, disposition en courbe
+            const conePositions = [
+                { x: -11, z: -102 },   // Gauche extrême (recule)
+                { x: -5.5, z: -100.5 }, // Gauche
+                { x: 0, z: -100 },      // Centre (avance)
+                { x: 5.5, z: -100.5 },  // Droit
+                { x: 11, z: -102 }      // Droit extrême (recule)
+            ];
+
+            conePositions.forEach((pos, index) => {
+                const coneColor = index % 2 === 0 ? 0xff9a56 : 0xffa500;
+                const hasSign = index === 2; // Panneau VACANCY sur le cône du milieu
+                const coneNumber = index + 1; // Numéros 1 à 5
+                createCozyCone(scene, new THREE.Vector3(pos.x, 0, pos.z), coneColor, hasSign, coneNumber);
+
+                // Terrasse simplifiée devant l'entrée (8-10 pieds = 2.4-3m)
+                const patioGeometry = new THREE.BoxGeometry(3.5, 0.08, 2.8);
+                const patioMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xd2b48c, // Beige/sable
+                    roughness: 0.9,
+                    metalness: 0.05
+                });
+                const patio = new THREE.Mesh(patioGeometry, patioMaterial);
+                patio.position.set(pos.x, 0.04, pos.z + 4.5); // Devant l'entrée
+                patio.receiveShadow = true;
+                scene.add(patio);
+
+                // Bordure légère
+                const borderGeometry = new THREE.BoxGeometry(3.7, 0.12, 0.1);
+                const borderMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xa0826d,
+                    roughness: 0.95
+                });
+                const border = new THREE.Mesh(borderGeometry, borderMaterial);
+                border.position.set(pos.x, 0.06, pos.z + 5.9);
+                scene.add(border);
+            });
+
+            // Ajouter un panneau principal "Cozy Cone Motel"
+            const mainSignGroup = new THREE.Group();
+            const mainSignGeometry = new THREE.BoxGeometry(15, 2, 0.2);
+            const mainSignMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4ecdc4,
+                emissive: 0x4ecdc4,
+                emissiveIntensity: 0.5,
+                roughness: 0.3
+            });
+            const mainSign = new THREE.Mesh(mainSignGeometry, mainSignMaterial);
+            mainSign.position.y = 10;
+            mainSignGroup.add(mainSign);
+
+            // Texte du panneau
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4ecdc4';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 100px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('COZY CONE MOTEL', canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const textMat = new THREE.MeshBasicMaterial({ map: texture });
+            const textPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(14.5, 1.8),
+                textMat
+            );
+            textPlane.position.set(0, 10, 0.11);
+            mainSignGroup.add(textPlane);
+
+            mainSignGroup.position.set(0, 0, -95);
+            scene.add(mainSignGroup);
+
+            // Créer le parking/terrasse devant le motel
+            createCozyConePatio(scene, new THREE.Vector3(0, 0, -105.5));
+
+            // Ajouter le mobilier extérieur
+            createCozyConeFurniture(scene);
+
+            // Créer le bureau de réception/office
+            createCozyConeoOffice(scene, new THREE.Vector3(14, 0, -95));
+
+            // Ajouter les décorations désertiques autour du motel
+            createCozyConeDesertDecor(scene);
+
+            console.log('  ✅ 🏨 Cozy Cone Motel created with 5 cones, parking, furniture, office and desert decorations');
+            return; // Skip le reste pour ce bâtiment
+        }
+
+        // Gestion spéciale pour le Sheriff Office
+        if (building.id === 'sheriff-office') {
+            console.log('  👮 Creating detailed Sheriff Office...');
+            createSheriffOffice(scene, new THREE.Vector3(
+                building.position.x,
+                building.position.y,
+                building.position.z
+            ));
+            console.log('  ✅ 👮 Sheriff Office created with badge and jail cell');
+            return; // Skip le reste pour ce bâtiment
+        }
+
+        const buildingGroup = new THREE.Group();
+
+        // ========== CORPS DU BÂTIMENT ==========
+        const bodyGeometry = new THREE.BoxGeometry(
+            building.size.width,
+            building.size.height,
+            building.size.depth
+        );
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: building.color,
+            roughness: 0.6,
+            metalness: 0.3,
+            flatShading: false
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = building.size.height / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        buildingGroup.add(body);
+
+        // ========== TOIT PLAT (Style Route 66) ==========
+        const roofGeometry = new THREE.BoxGeometry(
+            building.size.width + 0.5,
+            0.5,
+            building.size.depth + 0.5
+        );
+        const roofMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(building.color).multiplyScalar(0.7), // Plus sombre
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.y = building.size.height + 0.25;
+        roof.castShadow = true;
+        buildingGroup.add(roof);
+
+        // ========== PORTE ==========
+        const doorWidth = Math.min(2, building.size.width * 0.3);
+        const doorHeight = Math.min(3, building.size.height * 0.6);
+        const doorGeometry = new THREE.BoxGeometry(doorWidth, doorHeight, 0.2);
+        const doorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a3520,
+            roughness: 0.9
+        });
+        const door = new THREE.Mesh(doorGeometry, doorMaterial);
+        door.position.set(0, doorHeight / 2, building.size.depth / 2 + 0.1);
+        door.castShadow = true;
+        buildingGroup.add(door);
+
+        // ========== FENÊTRES ==========
+        const windowGeometry = new THREE.PlaneGeometry(1.2, 1.5);
+        const windowMaterial = new THREE.MeshStandardMaterial({
+            color: 0x87ceeb,
+            transparent: true,
+            opacity: 0.6,
+            roughness: 0.3
+        });
+
+        // Fenêtres sur la façade (2-4 selon la largeur)
+        const numWindows = Math.min(4, Math.floor(building.size.width / 4));
+        const windowSpacing = building.size.width / (numWindows + 1);
+
+        for (let i = 1; i <= numWindows; i++) {
+            // Skip la position du milieu (réservée à la porte)
+            if (Math.abs(i * windowSpacing - building.size.width / 2) < 2) continue;
+
+            const window = new THREE.Mesh(windowGeometry, windowMaterial);
+            window.position.set(
+                i * windowSpacing - building.size.width / 2,
+                building.size.height * 0.6,
+                building.size.depth / 2 + 0.05
+            );
+            buildingGroup.add(window);
+
+            // Cadre de fenêtre
+            const frameGeometry = new THREE.BoxGeometry(1.3, 1.6, 0.05);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0x8b4513,
+                roughness: 0.8
+            });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(
+                i * windowSpacing - building.size.width / 2,
+                building.size.height * 0.6,
+                building.size.depth / 2 + 0.08
+            );
+            buildingGroup.add(frame);
+        }
+
+        // ========== PANNEAU AVEC NOM (TextSprite - simple pour l'instant) ==========
+        const signGeometry = new THREE.PlaneGeometry(building.size.width * 0.8, 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+
+        // Fond
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Texte
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${building.icon} ${building.name}`, canvas.width / 2, canvas.height / 2);
+
+        const signTexture = new THREE.CanvasTexture(canvas);
+        const signMaterial = new THREE.MeshBasicMaterial({
+            map: signTexture,
+            transparent: true
+        });
+        const sign = new THREE.Mesh(signGeometry, signMaterial);
+        sign.position.y = building.size.height + 1.5;
+        buildingGroup.add(sign);
+
+        // ========== ENSEIGNE NÉON SPÉCIALE (pour bâtiments importants) ==========
+        if (building.id === 'flos-cafe') {
+            // Enseigne néon "FLO'S V8 CAFE"
+            const neonSignGroup = new THREE.Group();
+
+            // Fond de l'enseigne
+            const neonBackGeometry = new THREE.BoxGeometry(10, 3, 0.3);
+            const neonBackMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.7
+            });
+            const neonBack = new THREE.Mesh(neonBackGeometry, neonBackMaterial);
+            neonSignGroup.add(neonBack);
+
+            // Texte néon
+            const neonCanvas = document.createElement('canvas');
+            neonCanvas.width = 1024;
+            neonCanvas.height = 384;
+            const neonCtx = neonCanvas.getContext('2d');
+            neonCtx.fillStyle = '#000000';
+            neonCtx.fillRect(0, 0, neonCanvas.width, neonCanvas.height);
+
+            // Texte avec effet glow
+            neonCtx.shadowColor = '#4ecdc4';
+            neonCtx.shadowBlur = 30;
+            neonCtx.fillStyle = '#4ecdc4';
+            neonCtx.font = 'bold 120px Arial';
+            neonCtx.textAlign = 'center';
+            neonCtx.fillText("FLO'S", neonCanvas.width / 2, 130);
+            neonCtx.font = 'bold 140px Arial';
+            neonCtx.fillText("V8 CAFE", neonCanvas.width / 2, 300);
+
+            const neonTexture = new THREE.CanvasTexture(neonCanvas);
+            const neonTextMaterial = new THREE.MeshBasicMaterial({
+                map: neonTexture,
+                transparent: true
+            });
+            const neonText = new THREE.Mesh(
+                new THREE.PlaneGeometry(9.5, 2.8),
+                neonTextMaterial
+            );
+            neonText.position.z = 0.16;
+            neonSignGroup.add(neonText);
+
+            // Lumières pour l'effet néon
+            const neonLight1 = new THREE.PointLight(0x4ecdc4, 3, 20);
+            neonLight1.position.set(0, 1, 0.5);
+            neonSignGroup.add(neonLight1);
+
+            const neonLight2 = new THREE.PointLight(0x4ecdc4, 2, 15);
+            neonLight2.position.set(0, -1, 0.5);
+            neonSignGroup.add(neonLight2);
+
+            // Positionner l'enseigne devant le bâtiment
+            neonSignGroup.position.set(0, building.size.height + 2, building.size.depth / 2 + 1);
+            buildingGroup.add(neonSignGroup);
+
+            // Stocker référence pour animation
+            buildingGroup.userData.neonLights = [neonLight1, neonLight2];
+        }
+
+        // ========== LUMIÈRE (pour autres bâtiments importants) ==========
+        if (building.features?.includes('neon-sign') && building.id !== 'flos-cafe') {
+            const pointLight = new THREE.PointLight(building.color, 2, 15);
+            pointLight.position.set(0, building.size.height / 2, building.size.depth / 2 + 1);
+            buildingGroup.add(pointLight);
+        }
+
+        // Positionner le groupe
+        buildingGroup.position.set(
+            building.position.x,
+            building.position.y,
+            building.position.z
+        );
+
+        // Données custom pour interaction
+        buildingGroup.userData = {
+            id: building.id,
+            name: building.name,
+            type: building.type,
+            description: building.description,
+            isBuilding: true,
+            garageEntry: building.garageEntry || false
+        };
+
+        scene.add(buildingGroup);
+        buildingMeshes.push(buildingGroup);
+
+        // ========== PHYSIQUE CANNON.JS ==========
+        const shape = new CANNON.Box(new CANNON.Vec3(
+            building.size.width / 2,
+            building.size.height / 2,
+            building.size.depth / 2
+        ));
+        const body_physics = new CANNON.Body({ mass: 0 }); // Statique
+        body_physics.addShape(shape);
+        body_physics.position.set(
+            building.position.x,
+            building.size.height / 2,
+            building.position.z
+        );
+        world.addBody(body_physics);
+
+        objects.push({
+            mesh: body,
+            body: body_physics
+        });
+
+        console.log(`  ✅ ${building.icon} ${building.name} placed at (${building.position.x}, ${building.position.z})`);
+    });
+
+    console.log(`✅ ${buildingMeshes.length} buildings created`);
+    return buildingMeshes;
+}
+
+/**
+ * Crée les montagnes en arrière-plan
+ */
+export function createRadiatorSpringsMountains(scene) {
+    console.log('⛰️ Creating background mountains...');
+
+    const mountains = RadiatorSpringsLayout.environment.mountains;
+
+    mountains.forEach((mountain, index) => {
+        const geometry = new THREE.ConeGeometry(
+            mountain.height * 0.8,  // Rayon base
+            mountain.height,        // Hauteur
+            5,                      // Segments (low-poly)
+            1
+        );
+        const material = new THREE.MeshStandardMaterial({
+            color: mountain.color,
+            roughness: 0.9,
+            metalness: 0,
+            flatShading: true
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(mountain.x, mountain.height / 2, mountain.z);
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        scene.add(mesh);
+    });
+
+    console.log(`✅ ${mountains.length} mountains created`);
+}
+
+/**
+ * Configure l'éclairage désertique - Golden Hour style
+ */
+export function setupRadiatorSpringsLighting(scene) {
+    console.log('💡 Setting up Radiator Springs Golden Hour lighting...');
+
+    // Lumière ambiante chaude (golden hour)
+    const ambientLight = new THREE.AmbientLight(0xffd4a3, 0.8);
+    scene.add(ambientLight);
+
+    // Soleil principal (position coucher de soleil)
+    const sun = new THREE.DirectionalLight(0xffb366, 1.5);
+    sun.position.set(150, 60, -100);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 4096; // Qualité supérieure
+    sun.shadow.mapSize.height = 4096;
+    sun.shadow.camera.left = -200;
+    sun.shadow.camera.right = 200;
+    sun.shadow.camera.top = 200;
+    sun.shadow.camera.bottom = -200;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 500;
+    sun.shadow.bias = -0.0001;
+    scene.add(sun);
+
+    // Lumière d'appoint rose/orange (reflet du ciel)
+    const fillLight = new THREE.DirectionalLight(0xff8866, 0.4);
+    fillLight.position.set(-100, 40, 50);
+    scene.add(fillLight);
+
+    // Lumière hémisphérique (ciel doré / sol sable)
+    const hemiLight = new THREE.HemisphereLight(
+        0xffa858, // Ciel orange doré
+        0xd4a373, // Sol sable
+        0.6
+    );
+    scene.add(hemiLight);
+
+    // Lumière de rim (contour) pour donner du relief
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    rimLight.position.set(-50, 30, -150);
+    scene.add(rimLight);
+
+    // Fog pour l'atmosphère désertique
+    scene.fog = new THREE.Fog(
+        0xffd4a3, // Couleur dorée
+        80,       // Near
+        350       // Far
+    );
+
+    console.log('✅ Golden Hour lighting setup complete with fog');
+}
+
+/**
+ * Crée Sally (Porsche 911) statique
+ */
+function createSally(scene, position, rotation = 0) {
+    const sallyGroup = new THREE.Group();
+
+    // Corps principal (carrosserie basse et sportive)
+    const bodyGeometry = new THREE.BoxGeometry(1.5, 0.6, 3.2);
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a9fd8, // Bleu Porsche
+        metalness: 0.8,
+        roughness: 0.2
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 0.6;
+    body.castShadow = true;
+    sallyGroup.add(body);
+
+    // Cabine (forme arrondie de Porsche)
+    const cabinGeometry = new THREE.BoxGeometry(1.3, 0.5, 1.5);
+    const cabinMaterial = new THREE.MeshStandardMaterial({
+        color: 0x3a7fb8,
+        metalness: 0.8,
+        roughness: 0.2
+    });
+    const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
+    cabin.position.set(0, 1.05, -0.3);
+    cabin.castShadow = true;
+    sallyGroup.add(cabin);
+
+    // Vitres
+    const windowMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        metalness: 0.9,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.6
+    });
+
+    // Pare-brise
+    const windshieldGeometry = new THREE.BoxGeometry(1.2, 0.4, 0.1);
+    const windshield = new THREE.Mesh(windshieldGeometry, windowMaterial);
+    windshield.position.set(0, 1.05, 0.4);
+    windshield.rotation.x = -Math.PI / 12;
+    sallyGroup.add(windshield);
+
+    // Roues (Porsche style)
+    const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 16);
+    const wheelMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        metalness: 0.6,
+        roughness: 0.4
+    });
+
+    const wheelPositions = [
+        { x: -0.8, y: 0.35, z: 1.1 },
+        { x: 0.8, y: 0.35, z: 1.1 },
+        { x: -0.8, y: 0.35, z: -0.9 },
+        { x: 0.8, y: 0.35, z: -0.9 }
+    ];
+
+    wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+        wheel.position.set(pos.x, pos.y, pos.z);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.castShadow = true;
+        sallyGroup.add(wheel);
+    });
+
+    // Phares (yeux de Sally - caractéristique Cars)
+    const eyeGeometry = new THREE.CircleGeometry(0.15, 16);
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.3
+    });
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.5, 0.75, 1.61);
+    sallyGroup.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.5, 0.75, 1.61);
+    sallyGroup.add(rightEye);
+
+    // Pinstripe (décoration latérale - emblématique de Sally)
+    const stripeGeometry = new THREE.PlaneGeometry(0.1, 2.5);
+    const stripeMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.3
+    });
+    const leftStripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+    leftStripe.position.set(-0.76, 0.6, 0);
+    leftStripe.rotation.y = Math.PI / 2;
+    sallyGroup.add(leftStripe);
+
+    sallyGroup.position.copy(position);
+    sallyGroup.rotation.y = rotation;
+    scene.add(sallyGroup);
+
+    return sallyGroup;
+}
+
+/**
+ * Crée Mater (dépanneuse rouillée)
+ */
+function createMater(scene, position, rotation = 0) {
+    const materGroup = new THREE.Group();
+
+    // Corps de la dépanneuse (vieux camion)
+    const bodyGeometry = new THREE.BoxGeometry(1.8, 1.2, 3.5);
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513, // Rouille marron
+        metalness: 0.3,
+        roughness: 0.9
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 0.8;
+    body.castShadow = true;
+    materGroup.add(body);
+
+    // Cabine
+    const cabinGeometry = new THREE.BoxGeometry(1.7, 0.9, 1.5);
+    const cabinMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b3410,
+        metalness: 0.2,
+        roughness: 0.9
+    });
+    const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
+    cabin.position.set(0, 1.65, 0.8);
+    cabin.castShadow = true;
+    materGroup.add(cabin);
+
+    // Pare-brise
+    const windshieldGeometry = new THREE.BoxGeometry(1.5, 0.7, 0.1);
+    const windshieldMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        transparent: true,
+        opacity: 0.5,
+        roughness: 0.3
+    });
+    const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+    windshield.position.set(0, 1.65, 1.56);
+    materGroup.add(windshield);
+
+    // Grue/Crochet (caractéristique de Mater)
+    const craneGeometry = new THREE.BoxGeometry(0.3, 2.5, 0.3);
+    const craneMaterial = new THREE.MeshStandardMaterial({
+        color: 0x555555,
+        metalness: 0.7,
+        roughness: 0.6
+    });
+    const crane = new THREE.Mesh(craneGeometry, craneMaterial);
+    crane.position.set(0, 1.8, -1.5);
+    crane.rotation.x = Math.PI / 12;
+    crane.castShadow = true;
+    materGroup.add(crane);
+
+    // Crochet
+    const hookGeometry = new THREE.TorusGeometry(0.3, 0.08, 8, 16);
+    const hookMaterial = new THREE.MeshStandardMaterial({
+        color: 0x888888,
+        metalness: 0.8,
+        roughness: 0.4
+    });
+    const hook = new THREE.Mesh(hookGeometry, hookMaterial);
+    hook.position.set(0, 0.8, -1.7);
+    hook.rotation.x = Math.PI / 2;
+    materGroup.add(hook);
+
+    // Roues (vieilles et usées)
+    const wheelGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12);
+    const wheelMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        metalness: 0.2,
+        roughness: 0.95
+    });
+
+    const wheelPositions = [
+        { x: -0.9, y: 0.45, z: 1.2 },
+        { x: 0.9, y: 0.45, z: 1.2 },
+        { x: -0.9, y: 0.45, z: -0.8 },
+        { x: 0.9, y: 0.45, z: -0.8 }
+    ];
+
+    wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+        wheel.position.set(pos.x, pos.y, pos.z);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.castShadow = true;
+        materGroup.add(wheel);
+    });
+
+    // Yeux (grands et expressifs - caractéristique Mater)
+    const eyeGeometry = new THREE.CircleGeometry(0.2, 16);
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        emissive: 0xaaaaaa,
+        emissiveIntensity: 0.2
+    });
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.5, 1.85, 1.57);
+    materGroup.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.5, 1.85, 1.57);
+    materGroup.add(rightEye);
+
+    materGroup.position.copy(position);
+    materGroup.rotation.y = rotation;
+    scene.add(materGroup);
+
+    return materGroup;
+}
+
+/**
+ * Crée la tour de pneus chez Luigi
+ */
+function createTireStack(scene, position) {
+    const tireStackGroup = new THREE.Group();
+
+    const tireGeometry = new THREE.TorusGeometry(0.4, 0.15, 12, 24);
+    const tireMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.9,
+        metalness: 0.1
+    });
+
+    // Créer une pile de 8 pneus
+    const tirePositions = [
+        // Base (4 pneus)
+        { x: 0, y: 0.15, z: 0 },
+        { x: 0.85, y: 0.15, z: 0 },
+        { x: 0, y: 0.15, z: 0.85 },
+        { x: 0.85, y: 0.15, z: 0.85 },
+        // Niveau 2
+        { x: 0.4, y: 0.45, z: 0.4 },
+        { x: 0.4, y: 0.75, z: 0.4 },
+        // Niveau 3
+        { x: 0.4, y: 1.05, z: 0.4 },
+        // Top
+        { x: 0.4, y: 1.35, z: 0.4 }
+    ];
+
+    tirePositions.forEach((pos, index) => {
+        const tire = new THREE.Mesh(tireGeometry, tireMaterial);
+        tire.position.set(pos.x, pos.y, pos.z);
+        tire.rotation.x = Math.PI / 2;
+        // Rotation aléatoire pour plus de réalisme
+        tire.rotation.z = Math.random() * Math.PI;
+        tire.castShadow = true;
+        tire.receiveShadow = true;
+        tireStackGroup.add(tire);
+    });
+
+    tireStackGroup.position.copy(position);
+    scene.add(tireStackGroup);
+
+    return tireStackGroup;
+}
+
+/**
+ * Crée Willy's Butte - la butte emblématique de Radiator Springs
+ */
+function createWillysButte(scene, position) {
+    const butteGroup = new THREE.Group();
+
+    // Base large (forme conique aplatie)
+    const baseGeometry = new THREE.ConeGeometry(30, 60, 6, 1);
+    const butteMaterial = new THREE.MeshStandardMaterial({
+        color: 0xc96e3a, // Rouge-orange désert
+        roughness: 0.95,
+        metalness: 0,
+        flatShading: true
+    });
+    const base = new THREE.Mesh(baseGeometry, butteMaterial);
+    base.position.y = 30;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    butteGroup.add(base);
+
+    // Sommet plus petit (pic caractéristique)
+    const peakGeometry = new THREE.ConeGeometry(15, 25, 5, 1);
+    const peakMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb8632f,
+        roughness: 0.95,
+        metalness: 0,
+        flatShading: true
+    });
+    const peak = new THREE.Mesh(peakGeometry, peakMaterial);
+    peak.position.y = 72;
+    peak.castShadow = true;
+    butteGroup.add(peak);
+
+    // Strates horizontales (couches de roche)
+    for (let i = 0; i < 4; i++) {
+        const strataGeometry = new THREE.CylinderGeometry(
+            28 - i * 3,
+            29 - i * 3,
+            1,
+            6
+        );
+        const strataMaterial = new THREE.MeshStandardMaterial({
+            color: i % 2 === 0 ? 0xa85838 : 0xc96e3a,
+            roughness: 0.95,
+            flatShading: true
+        });
+        const strata = new THREE.Mesh(strataGeometry, strataMaterial);
+        strata.position.y = 15 + i * 12;
+        butteGroup.add(strata);
+    }
+
+    butteGroup.position.copy(position);
+    scene.add(butteGroup);
+
+    return butteGroup;
+}
+
+/**
+ * Crée des rochers du désert
+ */
+function createDesertRock(scene, position, scale = 1) {
+    const rockGroup = new THREE.Group();
+
+    // Rocher principal (forme irrégulière)
+    const rockGeometry = new THREE.DodecahedronGeometry(scale, 0);
+    const rockMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb87356,
+        roughness: 0.95,
+        metalness: 0
+    });
+    const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+    rock.position.y = scale * 0.7;
+    rock.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+    );
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    rockGroup.add(rock);
+
+    rockGroup.position.copy(position);
+    scene.add(rockGroup);
+
+    return rockGroup;
+}
+
+/**
+ * Crée la statue de Stanley (fondateur de Radiator Springs)
+ */
+function createStanleyStatue(scene, position) {
+    const statueGroup = new THREE.Group();
+
+    // Piédestal
+    const pedestalGeometry = new THREE.CylinderGeometry(1.5, 1.8, 1.5, 8);
+    const pedestalMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b7355,
+        roughness: 0.8,
+        metalness: 0.1
+    });
+    const pedestal = new THREE.Mesh(pedestalGeometry, pedestalMaterial);
+    pedestal.position.y = 0.75;
+    pedestal.castShadow = true;
+    statueGroup.add(pedestal);
+
+    // Plaque
+    const plaqueGeometry = new THREE.BoxGeometry(2, 0.5, 0.1);
+    const plaqueMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b5d4f,
+        roughness: 0.7
+    });
+    const plaque = new THREE.Mesh(plaqueGeometry, plaqueMaterial);
+    plaque.position.set(0, 0.75, 1.9);
+    statueGroup.add(plaque);
+
+    // Texte sur plaque
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#6b5d4f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#d4a373';
+    ctx.font = 'bold 50px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('STANLEY', canvas.width / 2, 80);
+
+    const plaqueTexture = new THREE.CanvasTexture(canvas);
+    const plaqueTextMaterial = new THREE.MeshBasicMaterial({
+        map: plaqueTexture
+    });
+    const plaqueText = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.8, 0.4),
+        plaqueTextMaterial
+    );
+    plaqueText.position.set(0, 0.75, 1.96);
+    statueGroup.add(plaqueText);
+
+    // Voiture Stanley (simplifié - vieille voiture)
+    const carBodyGeometry = new THREE.BoxGeometry(1.2, 0.8, 2.5);
+    const statueMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a4a4a, // Bronze/gris
+        metalness: 0.6,
+        roughness: 0.4
+    });
+    const carBody = new THREE.Mesh(carBodyGeometry, statueMaterial);
+    carBody.position.y = 2.5;
+    carBody.castShadow = true;
+    statueGroup.add(carBody);
+
+    // Cabine
+    const cabinGeometry = new THREE.BoxGeometry(1.0, 0.6, 1.2);
+    const cabin = new THREE.Mesh(cabinGeometry, statueMaterial);
+    cabin.position.set(0, 3.1, -0.3);
+    cabin.castShadow = true;
+    statueGroup.add(cabin);
+
+    // Roues (4)
+    const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 12);
+    const wheelPositions = [
+        { x: -0.65, y: 1.8, z: 0.9 },
+        { x: 0.65, y: 1.8, z: 0.9 },
+        { x: -0.65, y: 1.8, z: -0.9 },
+        { x: 0.65, y: 1.8, z: -0.9 }
+    ];
+
+    wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeometry, statueMaterial);
+        wheel.position.set(pos.x, pos.y, pos.z);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.castShadow = true;
+        statueGroup.add(wheel);
+    });
+
+    statueGroup.position.copy(position);
+    statueGroup.rotation.y = Math.PI;
+    scene.add(statueGroup);
+
+    return statueGroup;
+}
+
+/**
+ * Crée un tumbleweed (buisson roulant du désert)
+ */
+function createTumbleweed(scene, position) {
+    const tumbleweedGroup = new THREE.Group();
+
+    // Sphère avec branches
+    const geometry = new THREE.IcosahedronGeometry(0.5, 0);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0x8b7355,
+        roughness: 0.95,
+        wireframe: true
+    });
+    const tumbleweed = new THREE.Mesh(geometry, material);
+    tumbleweed.position.y = 0.5;
+    tumbleweed.castShadow = true;
+    tumbleweedGroup.add(tumbleweed);
+
+    tumbleweedGroup.position.copy(position);
+    scene.add(tumbleweedGroup);
+
+    return tumbleweedGroup;
+}
+
+/**
+ * Crée une pompe à essence vintage
+ */
+function createGasPump(scene, position, color) {
+    const pumpGroup = new THREE.Group();
+
+    // Base
+    const baseGeometry = new THREE.BoxGeometry(0.6, 0.3, 0.6);
+    const baseMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.8
+    });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 0.15;
+    pumpGroup.add(base);
+
+    // Corps principal
+    const bodyGeometry = new THREE.BoxGeometry(0.5, 1.5, 0.4);
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.6,
+        metalness: 0.3
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 1.05;
+    body.castShadow = true;
+    pumpGroup.add(body);
+
+    // Écran/Display
+    const displayGeometry = new THREE.BoxGeometry(0.35, 0.4, 0.05);
+    const displayMaterial = new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        emissive: 0x00ff00,
+        emissiveIntensity: 0.3
+    });
+    const display = new THREE.Mesh(displayGeometry, displayMaterial);
+    display.position.set(0, 1.2, 0.225);
+    pumpGroup.add(display);
+
+    // Tuyau
+    const hoseGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
+    const hoseMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        roughness: 0.9
+    });
+    const hose = new THREE.Mesh(hoseGeometry, hoseMaterial);
+    hose.position.set(0.3, 1.0, 0);
+    hose.rotation.z = Math.PI / 6;
+    pumpGroup.add(hose);
+
+    // Pistolet
+    const nozzleGeometry = new THREE.CylinderGeometry(0.06, 0.04, 0.15, 8);
+    const nozzle = new THREE.Mesh(nozzleGeometry, hoseMaterial);
+    nozzle.position.set(0.45, 0.7, 0);
+    nozzle.rotation.z = Math.PI / 3;
+    pumpGroup.add(nozzle);
+
+    pumpGroup.position.copy(position);
+    scene.add(pumpGroup);
+
+    return pumpGroup;
+}
+
+/**
+ * Crée un drapeau italien (pour Luigi's)
+ */
+function createItalianFlag(scene, position) {
+    const flagGroup = new THREE.Group();
+
+    // Mât
+    const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 3, 8);
+    const poleMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+        roughness: 0.8
+    });
+    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+    pole.position.y = 1.5;
+    flagGroup.add(pole);
+
+    // Drapeau (3 bandes verticales)
+    const stripeWidth = 0.3;
+    const colors = [0x009246, 0xffffff, 0xce2b37]; // Vert, Blanc, Rouge
+
+    colors.forEach((color, index) => {
+        const stripeGeometry = new THREE.PlaneGeometry(stripeWidth, 0.6);
+        const stripeMaterial = new THREE.MeshStandardMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+            roughness: 0.7
+        });
+        const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+        stripe.position.set(
+            (index - 1) * stripeWidth,
+            2.7,
+            0.05
+        );
+        flagGroup.add(stripe);
+    });
+
+    flagGroup.position.copy(position);
+    scene.add(flagGroup);
+
+    return flagGroup;
+}
+
+/**
+ * Crée un cône de circulation (traffic cone)
+ */
+function createTrafficCone(scene, position) {
+    const coneGroup = new THREE.Group();
+
+    // Cône
+    const coneGeometry = new THREE.ConeGeometry(0.3, 0.7, 8);
+    const coneMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff6600,
+        roughness: 0.8
+    });
+    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+    cone.position.y = 0.35;
+    cone.castShadow = true;
+    coneGroup.add(cone);
+
+    // Bande blanche
+    const stripeGeometry = new THREE.CylinderGeometry(0.25, 0.27, 0.1, 8);
+    const stripeMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.8
+    });
+    const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+    stripe.position.y = 0.35;
+    coneGroup.add(stripe);
+
+    // Base
+    const baseGeometry = new THREE.BoxGeometry(0.4, 0.05, 0.4);
+    const baseMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        roughness: 0.9
+    coneGroup.add(base);
+    coneGroup.position.copy(position);
+    scene.add(coneGroup);
+
+    return coneGroup;
+}
+
+/**
+ * Crée le Sheriff Office détaillé
+ */
+function createSheriffOffice(scene, position) {
+    const sheriffGroup = new THREE.Group();
+
+    // Bâtiment principal (bois marron western)
+    const buildingGeometry = new THREE.BoxGeometry(10, 6, 8);
+    const buildingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b7355,
+        roughness: 0.8,
+        metalness: 0.1
+    });
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+    building.position.y = 3;
+    building.castShadow = true;
+    building.receiveShadow = true;
+    sheriffGroup.add(building);
+
+    // Toit en pente (caractéristique western)
+    const roofGeometry = new THREE.ConeGeometry(7, 2, 4);
+    const roofMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b5d4f,
+        roughness: 0.9,
+        flatShading: true
+    });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 7;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    sheriffGroup.add(roof);
+
+    // Porche/Auvent frontal
+    const porchGeometry = new THREE.BoxGeometry(11, 0.2, 3);
+    const porchMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b5d4f,
+        roughness: 0.8
+    });
+    const porch = new THREE.Mesh(porchGeometry, porchMaterial);
+    porch.position.set(0, 2.5, 5.5);
+    porch.castShadow = true;
+    sheriffGroup.add(porch);
+
+    // Piliers du porche
+    const pillarGeometry = new THREE.CylinderGeometry(0.15, 0.2, 2.5, 6);
+    const pillarMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+        roughness: 0.9
+    });
+    [-4, -2, 0, 2, 4].forEach(x => {
+        const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+        pillar.position.set(x, 1.25, 5.5);
+        pillar.castShadow = true;
+        sheriffGroup.add(pillar);
+    });
+
+    // Porte principale
+    const doorGeometry = new THREE.BoxGeometry(2, 3, 0.2);
+    const doorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a3520,
+        roughness: 0.9
+    });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(0, 1.5, 4.1);
+    sheriffGroup.add(door);
+
+    // Poignée de porte
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
+    const handleMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4af37,
+        metalness: 0.8,
+        roughness: 0.3
+    });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.set(0.7, 1.5, 4.25);
+    handle.rotation.z = Math.PI / 2;
+    sheriffGroup.add(handle);
+
+    // Fenêtres (avec barreaux)
+    const windowGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+    const windowMaterial = new THREE.MeshStandardMaterial({
+        color: 0x87ceeb,
+        transparent: true,
+        opacity: 0.5,
+        roughness: 0.3
+    });
+
+    // Fenêtre gauche
+    const leftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+    leftWindow.position.set(-2.5, 3.5, 4.05);
+    sheriffGroup.add(leftWindow);
+
+    // Fenêtre droite
+    const rightWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+    rightWindow.position.set(2.5, 3.5, 4.05);
+    sheriffGroup.add(rightWindow);
+
+    // Barreaux pour les deux fenêtres
+    const barGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1.5, 6);
+    const barMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        metalness: 0.8,
+        roughness: 0.4
+    });
+
+    [-2.5, 2.5].forEach(windowX => {
+        for (let i = 0; i < 4; i++) {
+            const bar = new THREE.Mesh(barGeometry, barMaterial);
+            bar.position.set(windowX - 0.6 + i * 0.4, 3.5, 4.15);
+            sheriffGroup.add(bar);
+        }
+    });
+
+    // Badge de Sheriff (grand sur la façade)
+    const badgeGroup = new THREE.Group();
+
+    // Étoile à 6 branches
+    const starShape = new THREE.Shape();
+    const outerRadius = 0.8;
+    const innerRadius = 0.4;
+    const spikes = 6;
+
+    starShape.moveTo(0, outerRadius);
+    for (let i = 0; i < spikes * 2; i++) {
+        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+        const angle = (Math.PI / spikes) * i - Math.PI / 2;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        starShape.lineTo(x, y);
+    }
+    starShape.closePath();
+
+    const starGeometry = new THREE.ExtrudeGeometry(starShape, {
+        depth: 0.1,
+        bevelEnabled: false
+    });
+    const badgeMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd4af37, // Or
+        metalness: 0.9,
+        roughness: 0.2
+    });
+    const badge = new THREE.Mesh(starGeometry, badgeMaterial);
+    badge.position.set(0, 5, 4.15);
+    badge.castShadow = true;
+    badgeGroup.add(badge);
+
+    // Cercle central du badge
+    const circleGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.12, 16);
+    const circle = new THREE.Mesh(circleGeometry, badgeMaterial);
+    circle.rotation.x = Math.PI / 2;
+    circle.position.set(0, 5, 4.18);
+    badgeGroup.add(circle);
+
+    sheriffGroup.add(badgeGroup);
+
+    // Panneau "SHERIFF" au-dessus de la porte
+    const signCanvas = document.createElement('canvas');
+    signCanvas.width = 512;
+    signCanvas.height = 128;
+    const signCtx = signCanvas.getContext('2d');
+    signCtx.fillStyle = '#6b5d4f';
+    signCtx.fillRect(0, 0, signCanvas.width, signCanvas.height);
+    signCtx.fillStyle = '#ffffff';
+    signCtx.font = 'bold 80px serif';
+    signCtx.textAlign = 'center';
+    signCtx.textBaseline = 'middle';
+    signCtx.fillText('SHERIFF', signCanvas.width / 2, signCanvas.height / 2);
+
+    const signTexture = new THREE.CanvasTexture(signCanvas);
+    const signTextMaterial = new THREE.MeshBasicMaterial({
+        map: signTexture
+    });
+    const signPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(6, 1.5),
+        signTextMaterial
+    );
+    signPlane.position.set(0, 3.8, 4.12);
+    sheriffGroup.add(signPlane);
+
+    // Cellule visible sur le côté
+    const cellGeometry = new THREE.BoxGeometry(3, 2.5, 2);
+    const cellMaterial = new THREE.MeshStandardMaterial({
+        color: 0x666666,
+        roughness: 0.8
+    });
+    const cell = new THREE.Mesh(cellGeometry, cellMaterial);
+    cell.position.set(6, 2, 0);
+    cell.castShadow = true;
+    sheriffGroup.add(cell);
+
+    // Barreaux de la cellule (visibles de l'extérieur)
+    const cellBarGeometry = new THREE.CylinderGeometry(0.03, 0.03, 2.5, 6);
+    const cellBarMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        metalness: 0.8,
+        roughness: 0.5
+    });
+    for (let i = 0; i < 6; i++) {
+        const bar = new THREE.Mesh(cellBarGeometry, cellBarMaterial);
+        bar.position.set(6, 2, -0.8 + i * 0.3);
+        bar.rotation.x = Math.PI / 2;
+        sheriffGroup.add(bar);
+    }
+
+    // Lumière du porche
+    const porchLight = new THREE.PointLight(0xffd700, 1, 10);
+    porchLight.position.set(0, 2.8, 5.5);
+    sheriffGroup.add(porchLight);
+
+    sheriffGroup.position.copy(position);
+    scene.add(sheriffGroup);
+
+    return sheriffGroup;
+}
+
+/**
+ * Crée les props décoratifs (cactus, panneaux, etc.)
+ */
+export function createRadiatorSpringsProps(scene) {
+    console.log('🌵 Creating decorative props...');
+
+    const props = RadiatorSpringsLayout.props;
+    let propsCount = 0;
+
+    // Pompes à essence chez Fillmore (organic fuel - selon nouveau layout)
+    const gasStationPos = [
+        new THREE.Vector3(38, 0, -20),
+        new THREE.Vector3(42, 0, -20)
+    ];
+    gasStationPos.forEach(pos => {
+        createGasPump(scene, pos, 0x90ee90);
+        propsCount++;
+    });
+
+    // Drapeaux italiens chez Luigi (selon nouveau layout)
+    const flagPositions = [
+        new THREE.Vector3(36, 0, 18),
+        new THREE.Vector3(40, 0, 18),
+        new THREE.Vector3(44, 0, 18)
+    ];
+    flagPositions.forEach(pos => {
+        createItalianFlag(scene, pos);
+        propsCount++;
+    });
+
+    // Traffic cones dispersés
+    const conePositions = [
+        new THREE.Vector3(10, 0, -25),
+        new THREE.Vector3(-15, 0, -40),
+        new THREE.Vector3(15, 0, -80),
+        new THREE.Vector3(-10, 0, -100)
+    ];
+    conePositions.forEach(pos => {
+        createTrafficCone(scene, pos);
+        propsCount++;
+    });
+
+    // Cactus
+    const cactusProps = props.find(p => p.type === 'cactus');
+    if (cactusProps) {
+        cactusProps.positions.forEach(pos => {
+            const cactusGroup = new THREE.Group();
+
+            // Corps principal
+            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
+            const cactusMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2d5016,
+                roughness: 0.9
+            });
+            const body = new THREE.Mesh(bodyGeometry, cactusMaterial);
+            body.position.y = 1.5;
+            body.castShadow = true;
+            cactusGroup.add(body);
+
+            // Bras gauche
+            const armGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.5, 8);
+            const leftArm = new THREE.Mesh(armGeometry, cactusMaterial);
+            leftArm.position.set(-0.5, 2, 0);
+            leftArm.rotation.z = Math.PI / 4;
+            leftArm.castShadow = true;
+            cactusGroup.add(leftArm);
+
+            // Bras droit
+            const rightArm = new THREE.Mesh(armGeometry, cactusMaterial);
+            rightArm.position.set(0.5, 2.3, 0);
+            rightArm.rotation.z = -Math.PI / 5;
+            rightArm.castShadow = true;
+            cactusGroup.add(rightArm);
+
+            cactusGroup.position.set(pos.x, 0, pos.z);
+            scene.add(cactusGroup);
+            propsCount++;
+        });
+    }
+
+    // Panneau Route 66
+    const signProp = props.find(p => p.type === 'route66-sign');
+    if (signProp) {
+        const signGroup = new THREE.Group();
+
+        // Poteau
+        const poleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.y = 2;
+        signGroup.add(pole);
+
+        // Panneau
+        const panelGeometry = new THREE.BoxGeometry(3, 2, 0.1);
+        const panelMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.5
+        });
+        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+        panel.position.y = 4;
+        signGroup.add(panel);
+
+        // Texte "Route 66" (canvas texture)
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('ROUTE', canvas.width / 2, 100);
+        ctx.font = 'bold 120px Arial';
+        ctx.fillText('66', canvas.width / 2, 200);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const textMaterial = new THREE.MeshBasicMaterial({ map: texture });
+        const textPanel = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.9, 1.9),
+            textMaterial
+        );
+        textPanel.position.set(0, 4, 0.06);
+        signGroup.add(textPanel);
+
+        signGroup.position.set(signProp.position.x, 0, signProp.position.z);
+        signGroup.rotation.y = signProp.rotation;
+        scene.add(signGroup);
+        propsCount++;
+    }
+
+    // ========== VÉHICULES STATIQUES (personnages du film) ==========
+
+    // Sally (Porsche bleue) devant le Cozy Cone Motel (selon nouveau layout)
+    console.log('🚗 Creating Sally (Porsche)...');
+    createSally(scene, new THREE.Vector3(-5, 0, -95), Math.PI);
+    propsCount++;
+
+    // Mater (dépanneuse) près du Sheriff Office (selon nouveau layout)
+    console.log('🚚 Creating Mater (Tow Truck)...');
+    createMater(scene, new THREE.Vector3(22, 0, -35), -Math.PI / 2);
+    propsCount++;
+
+    // ========== TOUR DE PNEUS CHEZ LUIGI ==========
+    console.log('🛞 Creating tire stacks...');
+
+    // Plusieurs tours de pneus devant Luigi's (selon nouveau layout)
+    const tireStackPositions = [
+        new THREE.Vector3(36, 0, 20),
+        new THREE.Vector3(40, 0, 20),
+        new THREE.Vector3(44, 0, 20)
+    ];
+
+    tireStackPositions.forEach(pos => {
+        createTireStack(scene, pos);
+        propsCount++;
+    });
+
+    // ========== WILLY'S BUTTE (formations rocheuses emblématiques) ==========
+    console.log('⛰️ Creating Willy\'s Butte...');
+
+    // Willy's Butte principale (loin en arrière-plan)
+    createWillysButte(scene, new THREE.Vector3(120, 0, -150));
+    propsCount++;
+
+    // Butte secondaire plus petite
+    createWillysButte(scene, new THREE.Vector3(-100, 0, -180));
+    propsCount++;
+
+    // ========== ROCHERS DU DÉSERT ==========
+    console.log('🪨 Creating desert rocks...');
+
+    const rockPositions = [
+        { pos: new THREE.Vector3(40, 0, -30), scale: 1.5 },
+        { pos: new THREE.Vector3(-40, 0, -10), scale: 2.0 },
+        { pos: new THREE.Vector3(35, 0, -70), scale: 1.2 },
+        { pos: new THREE.Vector3(-45, 0, -50), scale: 1.8 },
+        { pos: new THREE.Vector3(50, 0, -100), scale: 1.0 },
+        { pos: new THREE.Vector3(-55, 0, -85), scale: 1.6 },
+        { pos: new THREE.Vector3(45, 0, 5), scale: 1.3 },
+        { pos: new THREE.Vector3(-50, 0, 25), scale: 1.1 }
+    ];
+
+    rockPositions.forEach(({ pos, scale }) => {
+        createDesertRock(scene, pos, scale);
+        propsCount++;
+    });
+
+    // ========== STATUE DE STANLEY ==========
+    console.log('🗿 Creating Stanley statue...');
+
+    // Devant le tribunal (Radiator Springs Courthouse - selon nouveau layout)
+    createStanleyStatue(scene, new THREE.Vector3(8, 0, -55));
+    propsCount++;
+
+    // ========== TUMBLEWEEDS ==========
+    console.log('🌾 Creating tumbleweeds...');
+
+    const tumbleweedPositions = [
+        new THREE.Vector3(20, 0, -45),
+        new THREE.Vector3(-35, 0, -25),
+        new THREE.Vector3(38, 0, -85),
+        new THREE.Vector3(-42, 0, -75),
+        new THREE.Vector3(12, 0, -5)
+    ];
+
+    tumbleweedPositions.forEach(pos => {
+        createTumbleweed(scene, pos);
+        propsCount++;
+    });
+
+    console.log(`✅ ${propsCount} props created (including landmarks & characters)`);
+}
