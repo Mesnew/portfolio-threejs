@@ -31,6 +31,7 @@ import { loadingManager } from './utils/loadingManager.js';
 import { initSentry, logError, setContext } from './utils/monitoring.js';
 import { initAnalytics, GameAnalytics } from './utils/analytics.js';
 import { initVisitorTracking, VisitorTracking } from './utils/visitorTracking.js';
+import { optimizeModel } from './utils/textureOptimizer.js';
 
 // Initialiser le monitoring des erreurs (Sentry)
 initSentry();
@@ -154,7 +155,7 @@ class Portfolio3D {
             // Chargement du modèle 3D complet de Radiator Springs
             // IMPORTANT: Attendre que le modèle soit chargé AVANT de créer la voiture
             console.log('⏳ Waiting for Radiator Springs model to load...');
-            this.floorMaterial = await createRadiatorSpringsSVGLayout(this.scene, this.world, this.objects);
+            this.floorMaterial = await createRadiatorSpringsSVGLayout(this.scene, this.world, this.objects, this.renderer);
             console.log('✅ Model loaded, creating car...');
 
             loadingManager.updateProgress(0.60, 'car');
@@ -366,6 +367,13 @@ class Portfolio3D {
                         child.receiveShadow = true;
                     }
                 });
+
+                // Optimiser les textures pour éviter les rayures et artifacts visuels
+                if (this.renderer) {
+                    optimizeModel(mcqueenModel, this.renderer);
+                } else {
+                    console.warn('⚠️ Renderer non fourni, optimisation des textures ignorée');
+                }
 
                 // Ajouter le modèle au groupe de la voiture
                 carGroup.add(mcqueenModel);

@@ -8,11 +8,16 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { logger } from './utils/logger.js';
 import { ColliderHelper } from './physics/ColliderHelper.js';
+import { optimizeModel } from './utils/textureOptimizer.js';
 
 /**
  * Charge et ajoute le modèle 3D de Radiator Springs à la scène
+ * @param {THREE.Scene} scene - La scène Three.js
+ * @param {RAPIER.World} world - Le monde physique Rapier
+ * @param {Object} objects - Objets de la scène
+ * @param {THREE.WebGLRenderer} renderer - Le renderer (pour optimiser les textures)
  */
-export function createRadiatorSpringsSVGLayout(scene, world, objects) {
+export function createRadiatorSpringsSVGLayout(scene, world, objects, renderer) {
     console.log('🏜️ Loading Radiator Springs 3D model...');
 
     // Retourner une Promise pour attendre le chargement
@@ -83,6 +88,13 @@ export function createRadiatorSpringsSVGLayout(scene, world, objects) {
                     child.receiveShadow = true;
                 }
             });
+
+            // Optimiser les textures pour éviter les rayures et artifacts visuels
+            if (renderer) {
+                optimizeModel(model, renderer);
+            } else {
+                console.warn('⚠️ Renderer non fourni, optimisation des textures ignorée');
+            }
 
             scene.add(model);
 
