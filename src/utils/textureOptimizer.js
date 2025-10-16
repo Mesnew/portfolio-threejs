@@ -10,7 +10,10 @@ import * as THREE from 'three';
  * @param {THREE.WebGLRenderer} renderer - Le renderer pour obtenir l'anisotropie max
  */
 export function optimizeTexture(texture, renderer) {
-    if (!texture || !texture.isTexture) return;
+    if (!texture || !texture.isTexture) {
+        console.warn('[TextureOptimizer] Invalid texture or renderer');
+        return;
+    }
 
     // Anisotropie maximale pour réduire les rayures sur les surfaces inclinées
     const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -29,6 +32,11 @@ export function optimizeTexture(texture, renderer) {
 
     // Forcer la mise à jour
     texture.needsUpdate = true;
+
+    // Log important même en production (utiliser warn pour qu'il s'affiche en prod)
+    if (typeof window !== 'undefined' && window.__TEXTURE_OPTIMIZER_VERBOSE) {
+        console.warn(`[TextureOptimizer] Texture optimized with ${maxAnisotropy}x anisotropy`);
+    }
 }
 
 /**
@@ -72,7 +80,7 @@ export function optimizeMaterial(material, renderer) {
  */
 export function optimizeModel(model, renderer) {
     if (!model || !renderer) {
-        console.warn('⚠️ optimizeModel: model or renderer is missing');
+        console.error('[TextureOptimizer] ERROR: model or renderer is missing!');
         return;
     }
 
@@ -96,8 +104,9 @@ export function optimizeModel(model, renderer) {
         }
     });
 
-    console.log(`✅ Textures optimisées : ${textureCount} textures dans ${materialCount} matériaux`);
-    console.log(`   → Anisotropie: ${renderer.capabilities.getMaxAnisotropy()}x`);
+    // Logs importants même en production (utiliser console.warn pour qu'ils s'affichent en prod)
+    console.warn(`[TextureOptimizer] ✅ Optimized ${textureCount} textures in ${materialCount} materials`);
+    console.warn(`[TextureOptimizer] → Anisotropy: ${renderer.capabilities.getMaxAnisotropy()}x`);
 }
 
 /**
