@@ -1,0 +1,249 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   🚀 INSTALLATION DIRECTE SUR VPS - COPIER-COLLER                ║
+║                                                                  ║
+║   Copiez-collez ces commandes une par une dans votre SSH        ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 0 : CONNEXION AU VPS (avec fix terminal kitty)         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Sur votre machine locale :
+
+TERM=xterm-256color ssh root@VOTRE_IP_VPS
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 1 : Aller dans le dossier du projet                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+cd /root/portfolio-threejs
+# OU le chemin où vous avez cloné le repo
+
+# Vérifier qu'on est au bon endroit :
+ls -la
+# Vous devez voir : package.json, src/, vite.config.js
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 2 : Installer Node.js 20                               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Vérifier si Node.js est installé
+node --version
+
+# Si version < 18 ou commande introuvable, installer :
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Vérifier l'installation
+node --version
+npm --version
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 3 : Installer les dépendances                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+npm install
+
+# Attendre 2-3 minutes
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 4 : Configurer .env                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+cp .env.example .env
+nano .env
+
+# Modifier ces lignes :
+# VITE_SENTRY_DSN=https://xxxxx@sentry.io/xxxxx (optionnel)
+# VITE_PLAUSIBLE_DOMAIN=testing.mesnew.fr (optionnel)
+# VITE_APP_VERSION=1.0.0
+
+# Sauvegarder : Ctrl+X → Y → Entrée
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 5 : Builder le projet                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+npm run build
+
+# Vérifier que le build a réussi
+ls -lh dist/
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 6 : Créer le répertoire web et copier les fichiers    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+sudo mkdir -p /var/www/testing.mesnew.fr
+sudo cp -r dist/* /var/www/testing.mesnew.fr/
+sudo chown -R www-data:www-data /var/www/testing.mesnew.fr
+sudo chmod -R 755 /var/www/testing.mesnew.fr
+
+# Vérifier
+ls -la /var/www/testing.mesnew.fr/
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 7 : Installer Nginx et Certbot                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# Vérifier
+sudo systemctl status nginx
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 8 : Créer la configuration Nginx                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# COPIER TOUTE CETTE COMMANDE (jusqu'au EOF final) :
+
+sudo tee /etc/nginx/sites-available/testing.mesnew.fr > /dev/null <<'EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name testing.mesnew.fr;
+
+    root /var/www/testing.mesnew.fr;
+    index index.html;
+
+    access_log /var/log/nginx/testing.mesnew.fr.access.log;
+    error_log /var/log/nginx/testing.mesnew.fr.error.log;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript
+               application/javascript application/xml+rss application/json
+               application/wasm image/svg+xml;
+
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    client_max_body_size 100M;
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|glb|gltf|bin)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    location ~* \.(env|md|json|yml|log|bak)$ {
+        deny all;
+    }
+}
+EOF
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 9 : Activer le site                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+sudo ln -sf /etc/nginx/sites-available/testing.mesnew.fr /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 10 : Tester en HTTP                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+curl -I http://testing.mesnew.fr
+
+# Doit afficher : HTTP/1.1 200 OK
+
+# Vous pouvez aussi tester dans le navigateur :
+# http://testing.mesnew.fr
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 11 : Configurer HTTPS avec Let's Encrypt              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+sudo certbot --nginx -d testing.mesnew.fr
+
+# Répondre aux questions :
+# - Email : votre-email@example.com
+# - Accepter conditions : Y
+# - Partager email : N ou Y (à votre choix)
+# - Redirection HTTPS : 2 (Oui, rediriger)
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 12 : Ajouter les headers de sécurité complets          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+sudo nano /etc/nginx/sites-available/testing.mesnew.fr
+
+# Trouver le bloc "server {" avec "listen 443 ssl"
+# Ajouter ces lignes APRÈS "ssl_certificate_key" :
+
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://plausible.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.sentry.io https://plausible.io; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+# Sauvegarder : Ctrl+X → Y → Entrée
+
+# Recharger Nginx
+sudo nginx -t
+sudo systemctl reload nginx
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ÉTAPE 13 : VÉRIFICATIONS FINALES                             ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Tester HTTPS
+curl -I https://testing.mesnew.fr
+
+# Doit afficher : HTTP/2 200
+
+# Dans le navigateur :
+# https://testing.mesnew.fr
+# → Doit charger avec un cadenas vert
+
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   ✅ INSTALLATION TERMINÉE !                                    ║
+║                                                                  ║
+║   🌐 Visitez : https://testing.mesnew.fr                        ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  COMMANDES UTILES POUR PLUS TARD                               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Mettre à jour le site après modifications :
+cd /root/portfolio-threejs
+git pull
+npm run build
+sudo cp -r dist/* /var/www/testing.mesnew.fr/
+
+# Voir les logs en temps réel :
+sudo tail -f /var/log/nginx/testing.mesnew.fr.access.log
+
+# Recharger Nginx :
+sudo nginx -t && sudo systemctl reload nginx
