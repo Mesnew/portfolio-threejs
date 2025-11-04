@@ -702,6 +702,20 @@
                 </div>
             </div>
         </div>
+
+        <!-- Mode de Conduite -->
+        <div class="hud-panel" id="driving-mode-panel" style="background: linear-gradient(135deg, rgba(68, 255, 68, 0.2), rgba(68, 255, 68, 0.1)); border-color: rgba(68, 255, 68, 0.3);">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 32px;" id="mode-icon">🚗</div>
+                <div>
+                    <div style="font-size: 12px; opacity: 0.7;">MODE</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #44ff44;" id="mode-name">NORMAL</div>
+                    <div style="font-size: 10px; opacity: 0.6; margin-top: 3px;">
+                        Max: <span id="mode-max-speed">50</span> km/h | Boost: <span id="mode-boost-speed">100</span> km/h
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Mini-map -->
@@ -749,6 +763,26 @@
                 <div class="control-title">🎮 INTERACTIONS</div>
                 <div class="control-item">Clic : Faire sauter objets</div>
                 <div class="control-item">Entrer : Fermer zone info</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">📸 PHOTO MODE</div>
+                <div class="control-item" style="color: #ffaa00; font-weight: bold;">P : Activer Photo Mode</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">🌧️ MÉTÉO</div>
+                <div class="control-item" style="color: #4682b4; font-weight: bold;">M : Activer/Désactiver Pluie</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">💨 DRIFT</div>
+                <div class="control-item" style="color: #ff6b6b; font-weight: bold;">ESPACE + Tourner : Drift léger</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">🏎️ MODE</div>
+                <div class="control-item" style="color: #44ff44; font-weight: bold;">T : Basculer Normal/Sport</div>
+            </div>
+            <div class="control-section">
+                <div class="control-title">🔧 GARAGE</div>
+                <div class="control-item" style="color: #ffaa00; font-weight: bold;">G : Ouvrir Garage</div>
             </div>
         </div>
     </div>

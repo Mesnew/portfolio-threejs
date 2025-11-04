@@ -8,17 +8,17 @@ import * as THREE from 'three';
 // Configuration réaliste pour le jour
 const DAY_CONFIG = {
     // Soleil
-    sunIntensity: 1.8,
+    sunIntensity: 0.9, // Réduit de 1.8
     sunColor: 0xfff5e6, // Légèrement chaud
     sunPosition: { x: 50, y: 80, z: 30 },
 
     // Lumière ambiante du ciel
-    skyIntensity: 0.8,
+    skyIntensity: 0.4, // Réduit de 0.8
     skyColor: 0x87ceeb, // Bleu ciel
     groundColor: 0xd2b48c, // Sable/terre
 
     // Lumière d'ambiance
-    ambientIntensity: 1.0,
+    ambientIntensity: 0.5, // Réduit de 1.0
     ambientColor: 0xffffff,
 
     // Couleur du ciel
@@ -36,17 +36,17 @@ const DAY_CONFIG = {
 // Configuration pour la nuit (crépuscule/lune brillante - très visible)
 const NIGHT_CONFIG = {
     // Lune très brillante
-    sunIntensity: 1.2,
+    sunIntensity: 0.6, // Réduit de 1.2
     sunColor: 0xc8d8e6, // Bleu très clair lunaire
     sunPosition: { x: -50, y: 60, z: -30 },
 
     // Lumière ambiante nocturne forte
-    skyIntensity: 0.7,
+    skyIntensity: 0.35, // Réduit de 0.7
     skyColor: 0x3a4f64, // Bleu nuit plus clair
     groundColor: 0x4a5a6e, // Gris bleuté plus clair
 
     // Lumière d'ambiance forte
-    ambientIntensity: 0.8,
+    ambientIntensity: 0.4, // Réduit de 0.8
     ambientColor: 0x8a9ba8, // Gris bleu clair
 
     // Couleur du ciel (crépuscule lumineux)
@@ -130,7 +130,7 @@ export class DayNightCycle {
         this.scene.add(this.lights.ambient);
 
         // Point light subtile pour les reflets
-        this.lights.pointLight = new THREE.PointLight(0xffd700, 0.2, 50);
+        this.lights.pointLight = new THREE.PointLight(0xffd700, 0.1, 50); // Réduit de 0.2
         this.lights.pointLight.position.set(0, 5, 0);
         this.scene.add(this.lights.pointLight);
 

@@ -32,6 +32,8 @@ import { initSentry, logError, setContext } from './utils/monitoring.js';
 import { initAnalytics, GameAnalytics } from './utils/analytics.js';
 import { initVisitorTracking, VisitorTracking } from './utils/visitorTracking.js';
 import { optimizeModel } from './utils/textureOptimizer.js';
+import { PhotoMode } from './utils/photoMode.js';
+import { WeatherSystem } from './utils/weatherSystem.js';
 
 // Initialiser le monitoring des erreurs (Sentry)
 initSentry();
@@ -128,6 +130,241 @@ class Portfolio3D {
         // Debug colliders
         this.showColliders = false;
 
+        // Photo Mode
+        this.photoMode = null;
+
+        // Weather System
+        this.weatherSystem = null;
+
+        // Drift system
+        this.isDrifting = false;
+        this.driftDirection = 0; // -1 = gauche, 1 = droite
+        this.driftIntensity = 0;
+        this.driftMarks = []; // Traces de drift
+        this.driftJumpProgress = 0; // Animation du saut (0 à 1)
+        this.driftTime = 0; // Temps de drift accumulé
+        this.driftLevel = 0; // 0 = pas de boost, 1 = bleu, 2 = orange
+        this.driftLevelStartTime = 0; // Quand le niveau actuel a commencé
+        this.driftSparks = []; // Particules d'étincelles
+
+        // Étincelles post-drift
+        this.postDriftSparks = false; // Si les étincelles continuent après le drift
+        this.postDriftSparksTime = 0; // Temps écoulé depuis la fin du drift
+        this.postDriftSparksDuration = 0; // Durée totale (1.4s bleu, 3s orange)
+        this.postDriftSparksLevel = 0; // Niveau des étincelles à afficher
+        this.postDriftSparksDirection = 0; // Direction du drift (-1 ou 1)
+
+        // Mini-turbo boost system
+        this.miniTurboActive = false; // Si un mini-turbo est actif
+        this.miniTurboTime = 0; // Temps écoulé depuis le début du boost
+        this.miniTurboDuration = 0; // Durée totale du boost
+        this.miniTurboSpeed = 0; // Vitesse supplémentaire du boost (en unités internes)
+
+        // Driving Mode System (Normal / Sport)
+        // Note: Les vitesses sont en unités internes (affichage = vitesse * 3.6 pour km/h)
+        this.drivingMode = 'normal'; // 'normal' ou 'sport'
+        this.drivingModes = {
+            normal: {
+                maxSpeed: 50 / 3.6,       // ~13.89 -> affiche 50 km/h
+                boostMaxSpeed: 100 / 3.6  // ~27.78 -> affiche 100 km/h
+            },
+            sport: {
+                maxSpeed: 100 / 3.6,      // ~27.78 -> affiche 100 km/h
+                boostMaxSpeed: 150 / 3.6  // ~41.67 -> affiche 150 km/h
+            }
+        };
+
+        // Skin System (Car Appearance)
+        // Note: Échelle UNIFORME pour tous les véhicules (1.5)
+        this.availableSkins = [
+            {
+                id: 'mcqueen',
+                name: 'Lightning McQueen',
+                path: '/skins/lightning_mcqueen_cars_3.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🏎️'
+            },
+            {
+                id: 'mcqueen_rs',
+                name: 'McQueen Classic',
+                path: '/skins/radiator_springs_lightning_mcqueen.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '⚡'
+            },
+            {
+                id: 'sally',
+                name: 'Sally Carrera',
+                path: '/skins/sally_carrera.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '💙'
+            },
+            {
+                id: 'cruz',
+                name: 'Cruz Ramirez',
+                path: '/skins/cruz_ramirez.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🟡'
+            },
+            {
+                id: 'chick',
+                name: 'Chick Hicks',
+                path: '/skins/chick_hicks.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '💚'
+            },
+            {
+                id: 'francesco',
+                name: 'Francesco Bernoulli',
+                path: '/skins/francesco_bernoulli.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇮🇹'
+            },
+            {
+                id: 'finn',
+                name: 'Finn McMissile',
+                path: '/skins/finn_mcmissle.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🕵️'
+            },
+            {
+                id: 'holley',
+                name: 'Holley Shiftwell',
+                path: '/skins/holley_shiftwell.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '💜'
+            },
+            {
+                id: 'jeff',
+                name: 'Jeff Gorvette',
+                path: '/skins/jeff_gorvette.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🏁'
+            },
+            {
+                id: 'carla',
+                name: 'Carla Veloso',
+                path: '/skins/carla_veloso.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇧🇷'
+            },
+            {
+                id: 'nigel',
+                name: 'Nigel Gearsley',
+                path: '/skins/nigel_gearsley.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇬🇧'
+            },
+            {
+                id: 'raoul',
+                name: 'Raoul Caroule',
+                path: '/skins/raoul_caroule.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇫🇷'
+            },
+            {
+                id: 'miguel',
+                name: 'Miguel Camino',
+                path: '/skins/miguel_camino.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇪🇸'
+            },
+            {
+                id: 'max',
+                name: 'Max Schnell',
+                path: '/skins/max_schnell.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇩🇪'
+            },
+            {
+                id: 'shu',
+                name: 'Shu Todoroki',
+                path: '/skins/shu_todoroki.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇯🇵'
+            },
+            {
+                id: 'kabuto',
+                name: 'Kabuto',
+                path: '/skins/kabuto.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🎌'
+            },
+            {
+                id: 'mater',
+                name: 'Mater',
+                path: '/skins/mater.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🚚'
+            },
+            {
+                id: 'fillmore',
+                name: 'Fillmore',
+                path: '/skins/fillmore.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🌿'
+            },
+            {
+                id: 'sarge',
+                name: 'Sarge',
+                path: '/skins/sarge.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🪖'
+            },
+            {
+                id: 'sheriff',
+                name: 'Sheriff',
+                path: '/skins/sherrif.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '👮'
+            },
+            {
+                id: 'flo',
+                name: 'Flo',
+                path: '/skins/flo.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🏪'
+            },
+            {
+                id: 'luigi',
+                name: 'Luigi',
+                path: '/skins/luigi.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🇮🇹'
+            },
+            {
+                id: 'guido',
+                name: 'Guido',
+                path: '/skins/guido.glb',
+                scale: 1.5,
+                yOffset: -0.75,
+                thumbnail: '🔧'
+            }
+        ];
+        this.currentSkinId = 'mcqueen';
+        this.garageOpen = false;
+
         this.init();
     }
 
@@ -182,8 +419,21 @@ class Portfolio3D {
             loadingManager.updateProgress(1.0, 'complete');
             loadingManager.hide();
 
+            // Initialiser le HUD du mode de conduite
+            this.updateDrivingModeHUD();
+
             // Track game start
             GameAnalytics.gameStart();
+
+            // Initialize Photo Mode
+            this.photoMode = new PhotoMode(this);
+            console.log('📸 Photo Mode initialized - Press P to activate!');
+
+            // Initialize Weather System
+            this.weatherSystem = new WeatherSystem(this);
+            console.log('🌧️ Weather System initialized - Press M to toggle rain!');
+
+            console.log('🏎️ Drift System ready - Hold SPACE while turning to drift!');
 
             // Start animation loop FIRST
             this.animate();
@@ -203,6 +453,7 @@ class Portfolio3D {
         // Background et fog seront gérés par le cycle jour/nuit
         console.log('Scene created');
     }
+
 
     createPhysicsWorld() {
         // Créer le monde physique Rapier avec gravité augmentée
@@ -225,20 +476,24 @@ class Portfolio3D {
     }
 
     createRenderer() {
-        // Détecter les appareils bas de gamme
+        // Configuration d'origine - retour à ce qui fonctionnait
         const isLowEnd = window.devicePixelRatio < 2 ||
                         (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4);
 
         this.renderer = new THREE.WebGLRenderer({
-            antialias: !isLowEnd, // Désactiver antialias sur appareils bas de gamme
-            powerPreference: 'high-performance' // Force GPU
+            antialias: !isLowEnd, // Seulement pour haut de gamme
+            powerPreference: 'high-performance'
         });
+
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        // Limiter pixel ratio à 1.5 pour les performances
+
+        // Pixel ratio limité comme avant
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isLowEnd ? 1 : 1.5));
-        this.renderer.shadowMap.enabled = !isLowEnd; // Désactiver shadows sur appareils bas de gamme
+
+        // Ombres seulement sur haut de gamme
+        this.renderer.shadowMap.enabled = !isLowEnd;
         if (this.renderer.shadowMap.enabled) {
-            this.renderer.shadowMap.type = THREE.BasicShadowMap; // Plus rapide que PCFSoft
+            this.renderer.shadowMap.type = THREE.BasicShadowMap;
         }
 
         const container = document.getElementById('canvas-container');
@@ -347,48 +602,8 @@ class Portfolio3D {
         carGroup.position.set(0, 3, 0);
         this.scene.add(carGroup);
 
-        // Charger le modèle Lightning McQueen
-        const loader = new GLTFLoader();
-        loader.load(
-            '/lightning_mcqueen_cars_3.glb',
-            (gltf) => {
-                console.log('✅ Lightning McQueen model loaded successfully!');
-
-                const mcqueenModel = gltf.scene;
-
-                // Ajuster l'échelle et la position
-                mcqueenModel.scale.set(carScale, carScale, carScale);
-                mcqueenModel.position.set(0, -0.75, 0); // Ajuster la hauteur pour aligner avec le corps physique
-
-                // Activer les ombres pour tous les meshes
-                mcqueenModel.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
-
-                // Optimiser les textures pour éviter les rayures et artifacts visuels
-                console.error('🏎️ [McQueen] About to optimize textures, renderer:', !!this.renderer);
-                if (this.renderer) {
-                    optimizeModel(mcqueenModel, this.renderer);
-                } else {
-                    console.error('❌ [McQueen] Renderer non fourni, optimisation des textures ignorée');
-                }
-
-                // Ajouter le modèle au groupe de la voiture
-                carGroup.add(mcqueenModel);
-
-                console.log('🏎️ Lightning McQueen added to car group');
-            },
-            (progress) => {
-                const percent = (progress.loaded / progress.total * 100).toFixed(0);
-                console.log(`Loading McQueen: ${percent}%`);
-            },
-            (error) => {
-                console.error('❌ Error loading Lightning McQueen model:', error);
-            }
-        );
+        // Charger le skin initial
+        this.loadCarSkin(carGroup, this.currentSkinId);
 
         console.log('Car mesh added to scene at:', carGroup.position);
 
@@ -437,7 +652,7 @@ class Portfolio3D {
             mesh: carGroup,
             body: carBody,
             speed: 0,
-            maxSpeed: 35,            // Augmenté de 25 à 35 pour plus de vitesse
+            maxSpeed: this.drivingModes[this.drivingMode].maxSpeed,
             acceleration: 0,
             steering: 0,
             maxSteering: 0.05,       // Augmenté de 0.04 à 0.05 pour meilleure maniabilité
@@ -483,6 +698,26 @@ class Portfolio3D {
             // Touche 'V' pour visualiser les colliders (debug)
             if (event.code === 'KeyV') {
                 this.toggleColliderVisualization();
+            }
+
+            // Touche 'P' pour activer le Photo Mode
+            if (event.code === 'KeyP' && this.photoMode) {
+                this.photoMode.toggle();
+            }
+
+            // Touche 'M' pour activer/désactiver la pluie
+            if (event.code === 'KeyM' && this.weatherSystem) {
+                this.weatherSystem.toggle();
+            }
+
+            // Touche 'T' pour basculer le mode de conduite (Normal/Sport)
+            if (event.code === 'KeyT') {
+                this.toggleDrivingMode();
+            }
+
+            // Touche 'G' pour ouvrir/fermer le garage
+            if (event.code === 'KeyG') {
+                this.toggleGarage();
             }
         });
 
@@ -631,6 +866,295 @@ class Portfolio3D {
 
         this.particles.push(particle);
         this.scene.add(particle);
+    }
+
+    /**
+     * Crée une trace de drift au sol (comme dans Mario Kart)
+     */
+    createDriftMark() {
+        if (!this.car) return;
+
+        // Limiter la fréquence de création
+        if (Math.random() > 0.3) return;
+
+        const carPos = this.car.body.translation();
+        const carQuat = this.car.body.rotation();
+
+        // Créer des traces pour les roues arrières (gauche et droite)
+        const wheelOffsets = [
+            { x: -0.4, z: -1.0 }, // Roue arrière gauche
+            { x: 0.4, z: -1.0 }   // Roue arrière droite
+        ];
+
+        wheelOffsets.forEach(offset => {
+            const worldOffset = rotateVectorByQuaternion(offset, carQuat);
+
+            // Géométrie de la trace (ligne fine)
+            const markGeometry = new THREE.PlaneGeometry(0.15, 0.5);
+            const markMaterial = new THREE.MeshBasicMaterial({
+                color: 0x222222, // Noir foncé
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const mark = new THREE.Mesh(markGeometry, markMaterial);
+
+            // Position au sol
+            mark.position.set(
+                carPos.x + worldOffset.x,
+                0.05, // Légèrement au-dessus du sol pour éviter z-fighting
+                carPos.z + worldOffset.z
+            );
+
+            // Rotation pour suivre la direction de la voiture
+            mark.rotation.x = -Math.PI / 2; // À plat sur le sol
+            mark.rotation.z = getYRotationFromQuaternion(carQuat);
+
+            mark.userData = {
+                life: 1.0,
+                decay: 0.15, // Disparait lentement
+                isRightWheel: offset.x > 0
+            };
+
+            this.driftMarks.push(mark);
+            this.scene.add(mark);
+        });
+
+        // Limiter le nombre de traces
+        const maxMarks = 200; // Maximum 200 traces à la fois
+        while (this.driftMarks.length > maxMarks) {
+            const oldMark = this.driftMarks.shift();
+            this.scene.remove(oldMark);
+            oldMark.geometry.dispose();
+            oldMark.material.dispose();
+        }
+    }
+
+    /**
+     * Met à jour les traces de drift (fade out progressif)
+     */
+    updateDriftMarks(deltaTime) {
+        for (let i = this.driftMarks.length - 1; i >= 0; i--) {
+            const mark = this.driftMarks[i];
+            const userData = mark.userData;
+
+            // Diminuer la vie
+            userData.life -= userData.decay * deltaTime;
+
+            // Fade out progressif
+            mark.material.opacity = userData.life * 0.7;
+
+            // Supprimer si mort
+            if (userData.life <= 0) {
+                this.scene.remove(mark);
+                mark.geometry.dispose();
+                mark.material.dispose();
+                this.driftMarks.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * Crée des étincelles de drift (bleues ou oranges selon le niveau)
+     * @param {number} levelOverride - Niveau optionnel pour les étincelles post-drift
+     * @param {number} directionOverride - Direction optionnelle pour les étincelles post-drift
+     * @param {boolean} postDrift - Si true, augmente la fréquence pour post-drift
+     */
+    createDriftSparks(levelOverride = null, directionOverride = null, postDrift = false) {
+        // Fréquence augmentée pour les étincelles post-drift
+        const frequency = postDrift ? 0.5 : 0.2;
+        if (!this.car || Math.random() > frequency) return;
+
+        const carPos = this.car.body.translation();
+        const carQuat = this.car.body.rotation();
+
+        // Utiliser le niveau et la direction fournis ou les valeurs actuelles
+        const level = levelOverride !== null ? levelOverride : this.driftLevel;
+        const direction = directionOverride !== null ? directionOverride : this.driftDirection;
+
+        // Couleur selon le niveau
+        let sparkColor;
+        if (level === 1) {
+            sparkColor = 0x00bbff; // Bleu clair
+        } else if (level === 2) {
+            sparkColor = 0xff8800; // Orange
+        } else {
+            return; // Pas d'étincelles sans niveau
+        }
+
+        // Créer des étincelles du côté du drift
+        // Plus d'étincelles pour post-drift
+        const numSparks = postDrift ? 12 : 8;
+        for (let i = 0; i < numSparks; i++) {
+            // Créer une étincelle (petite ligne)
+            const sparkLength = 0.2 + Math.random() * 0.15;
+            const sparkGeometry = new THREE.BufferGeometry();
+
+            const positions = new Float32Array([
+                0, 0, 0,
+                0, -sparkLength, 0
+            ]);
+            sparkGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const sparkMaterial = new THREE.LineBasicMaterial({
+                color: sparkColor,
+                transparent: true,
+                opacity: 1.0,
+                linewidth: 2
+            });
+
+            const spark = new THREE.Line(sparkGeometry, sparkMaterial);
+
+            // Position du côté du drift au niveau des roues (INVERSÉ avec -)
+            const offset = {
+                x: -direction * (0.5 + Math.random() * 0.2), // Du côté du drift (INVERSÉ)
+                y: -0.5, // Au niveau des roues (près du sol)
+                z: -1.0 - Math.random() * 0.4
+            };
+            const worldOffset = rotateVectorByQuaternion(offset, carQuat);
+
+            spark.position.set(
+                carPos.x + worldOffset.x,
+                carPos.y + worldOffset.y + 0.1, // Légèrement au-dessus du sol
+                carPos.z + worldOffset.z
+            );
+
+            // Vélocité : vers le haut et légèrement en arrière
+            const velocity = new THREE.Vector3(
+                -this.driftDirection * (1 + Math.random() * 2), // Vers l'extérieur (INVERSÉ)
+                2 + Math.random() * 3, // Vers le haut
+                (Math.random() - 0.5) * 2 // Aléatoire avant/arrière
+            );
+
+            spark.userData = {
+                velocity: velocity,
+                life: 1.0,
+                decay: 0.05 + Math.random() * 0.03,
+                isSpark: true,
+                sparkLevel: this.driftLevel,
+                rotationSpeed: (Math.random() - 0.5) * 8 // Rotation aléatoire
+            };
+
+            this.driftSparks.push(spark);
+            this.particles.push(spark);
+            this.scene.add(spark);
+        }
+
+        // Limiter le nombre d'étincelles
+        const maxSparks = 100; // Augmenté de 60 à 100
+        while (this.driftSparks.length > maxSparks) {
+            const oldSpark = this.driftSparks.shift();
+            const particleIndex = this.particles.indexOf(oldSpark);
+            if (particleIndex > -1) {
+                this.particles.splice(particleIndex, 1);
+            }
+            this.scene.remove(oldSpark);
+            oldSpark.geometry.dispose();
+            oldSpark.material.dispose();
+        }
+    }
+
+    /**
+     * Active le mini-turbo après le drift
+     */
+    activateMiniTurbo(level) {
+        if (!this.car) return;
+
+        // Vitesse à ajouter selon le niveau (en unités internes)
+        let speedBoostKmh, speedBoostUnits, duration;
+        if (level === 1) {
+            // Boost bleu : +30 km/h pendant 2 secondes
+            speedBoostKmh = 30;
+            speedBoostUnits = 30 / 3.6; // ~8.33 unités internes
+            duration = 2.0; // secondes
+            console.log('💎 MINI-TURBO BLUE! (+30 km/h for 2s)');
+        } else if (level === 2) {
+            // Boost orange : +50 km/h pendant 3 secondes
+            speedBoostKmh = 50;
+            speedBoostUnits = 50 / 3.6; // ~13.89 unités internes
+            duration = 3.0; // secondes
+            console.log('🔥 MINI-TURBO ORANGE! (+50 km/h for 3s)');
+        } else {
+            return;
+        }
+
+        // Activer le système de boost temporaire
+        this.miniTurboActive = true;
+        this.miniTurboTime = 0;
+        this.miniTurboDuration = duration;
+        this.miniTurboSpeed = speedBoostUnits;
+
+        // Créer des étincelles de boost
+        this.createMiniTurboSparks(level);
+    }
+
+    /**
+     * Crée des étincelles pour le mini-turbo (explosion d'étincelles)
+     */
+    createMiniTurboSparks(level) {
+        if (!this.car) return;
+
+        const carPos = this.car.body.translation();
+        const carQuat = this.car.body.rotation();
+
+        const color = level === 1 ? 0x00bbff : 0xff8800;
+        const count = 50; // Beaucoup d'étincelles pour l'explosion (augmenté de 30 à 50)
+
+        for (let i = 0; i < count; i++) {
+            // Créer une étincelle (petite ligne)
+            const sparkLength = 0.3 + Math.random() * 0.2;
+            const sparkGeometry = new THREE.BufferGeometry();
+
+            const positions = new Float32Array([
+                0, 0, 0,
+                0, -sparkLength, 0
+            ]);
+            sparkGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const sparkMaterial = new THREE.LineBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 1.0,
+                linewidth: 2
+            });
+
+            const spark = new THREE.Line(sparkGeometry, sparkMaterial);
+
+            // Position à l'arrière de la voiture au niveau des roues
+            const offset = {
+                x: (Math.random() - 0.5) * 1.5,
+                y: -0.5, // Au niveau des roues
+                z: -1.5 - Math.random() * 0.3
+            };
+            const worldOffset = rotateVectorByQuaternion(offset, carQuat);
+
+            spark.position.set(
+                carPos.x + worldOffset.x,
+                carPos.y + worldOffset.y + 0.1, // Légèrement au-dessus du sol
+                carPos.z + worldOffset.z
+            );
+
+            // Vélocité explosive dans toutes les directions
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 8,
+                Math.random() * 6 + 2,
+                (Math.random() - 0.5) * 8
+            );
+
+            spark.userData = {
+                velocity: velocity,
+                life: 1.0,
+                decay: 0.04 + Math.random() * 0.02,
+                isTurboSpark: true,
+                rotationSpeed: (Math.random() - 0.5) * 10 // Rotation aléatoire
+            };
+
+            this.driftSparks.push(spark);
+            this.particles.push(spark);
+            this.scene.add(spark);
+        }
     }
 
     createExhaustSmoke() {
@@ -932,11 +1456,13 @@ class Portfolio3D {
 
     updateParticles(deltaTime) {
         // Limiter le nombre de particules pour les performances
-        const maxParticles = 75; // Réduit de 100 à 75
+        const maxParticles = 150; // Augmenté pour plus d'étincelles
         if (this.particles.length > maxParticles) {
             const toRemove = this.particles.length - maxParticles;
             for (let i = 0; i < toRemove; i++) {
                 this.scene.remove(this.particles[i]);
+                this.particles[i].geometry.dispose();
+                this.particles[i].material.dispose();
             }
             this.particles.splice(0, toRemove);
         }
@@ -947,6 +1473,13 @@ class Portfolio3D {
 
             // Mise à jour position
             particle.position.add(userData.velocity.clone().multiplyScalar(deltaTime));
+
+            // Rotation pour les étincelles (lignes)
+            if (userData.rotationSpeed) {
+                particle.rotation.x += userData.rotationSpeed * deltaTime;
+                particle.rotation.y += userData.rotationSpeed * deltaTime * 0.7;
+                particle.rotation.z += userData.rotationSpeed * deltaTime * 0.5;
+            }
 
             // Gravité (sauf pour la fumée) - cohérente avec la gravité du monde
             if (!userData.scale) {
@@ -1059,10 +1592,120 @@ class Portfolio3D {
             signedSpeed = this.car.currentSpeed;
         }
 
-        // DIRECTION - Tourner la voiture (plus réactif)
-        if (turn !== 0 && currentSpeed > 0.1) {  // Seuil abaissé de 0.2 à 0.1
-            const speedFactor = Math.min(currentSpeed / 12, 1);  // Ajusté pour meilleure sensation
-            const maxTurnRate = 2.5;  // Augmenté de 2.0 à 2.5 pour virages plus réactifs
+        // SYSTÈME DE DRIFT (Style Mario Kart)
+        // Détecter si on est en train de drifter
+        const isDriftInput = brake && turn !== 0 && currentSpeed > 5;
+
+        if (isDriftInput && !this.isDrifting) {
+            // Début du drift
+            this.isDrifting = true;
+            this.driftDirection = turn;
+            this.driftJumpProgress = 0; // Réinitialiser l'animation de saut
+            this.driftTime = 0; // Réinitialiser le temps de drift
+            this.driftLevel = 0; // Réinitialiser le niveau
+            this.driftLevelStartTime = 0; // Réinitialiser le timer
+            console.log('💨 DRIFT START!');
+        } else if (!isDriftInput && this.isDrifting) {
+            // Fin du drift - déclencher le mini-turbo si niveau > 0
+            const hadBoost = this.driftLevel > 0;
+            const boostLevel = this.driftLevel;
+
+            this.isDrifting = false;
+            this.driftIntensity = 0;
+            this.driftJumpProgress = 1; // Terminer le saut
+
+            // Activer les étincelles post-drift si on avait un niveau
+            if (hadBoost) {
+                this.postDriftSparks = true;
+                this.postDriftSparksTime = 0;
+                this.postDriftSparksLevel = boostLevel;
+                this.postDriftSparksDirection = this.driftDirection; // Stocker la direction
+                // Durée selon le niveau : 1.4s pour bleu, 3s pour orange
+                this.postDriftSparksDuration = boostLevel === 1 ? 1.4 : 3.0;
+                console.log(`✨ Post-drift sparks started: Level ${boostLevel}, Duration ${this.postDriftSparksDuration}s`);
+
+                this.activateMiniTurbo(boostLevel);
+            }
+
+            this.driftTime = 0;
+            this.driftLevel = 0;
+            this.driftLevelStartTime = 0;
+
+            console.log('🏁 DRIFT END!');
+        }
+
+        // Mettre à jour l'animation du saut (rapide au début)
+        if (this.driftJumpProgress < 1) {
+            this.driftJumpProgress = Math.min(this.driftJumpProgress + deltaTime * 6, 1.0);
+        }
+
+        // Mettre à jour l'intensité du drift
+        if (this.isDrifting) {
+            this.driftIntensity = Math.min(this.driftIntensity + deltaTime * 2, 1.0);
+
+            // Accumuler le temps de drift
+            this.driftTime += deltaTime;
+
+            // Déterminer le niveau de drift (Mario Kart style)
+            if (this.driftTime >= 1.0 && this.driftLevel < 1) {
+                // Niveau 1 : Étincelles BLEUES déclenchées
+                this.driftLevel = 1;
+                this.driftLevelStartTime = this.driftTime;
+                console.log('💎 DRIFT LEVEL 1 - BLUE!');
+            } else if (this.driftTime >= (this.driftLevelStartTime + 1.4) && this.driftLevel === 1) {
+                // Niveau 2 : Étincelles ORANGE déclenchées après 1.4s de bleu
+                this.driftLevel = 2;
+                this.driftLevelStartTime = this.driftTime;
+                console.log('🔥 DRIFT LEVEL 2 - ORANGE!');
+            }
+
+            // Créer des étincelles selon le niveau et la durée
+            const timeSinceLevelStart = this.driftTime - this.driftLevelStartTime;
+
+            if (this.driftLevel === 1 && timeSinceLevelStart <= 1.4) {
+                // Étincelles bleues pendant 1.4 secondes
+                this.createDriftSparks();
+            } else if (this.driftLevel === 2 && timeSinceLevelStart <= 3.0) {
+                // Étincelles orange pendant 3 secondes
+                this.createDriftSparks();
+            }
+        } else {
+            this.driftIntensity = Math.max(this.driftIntensity - deltaTime * 4, 0);
+        }
+
+        // Gérer les étincelles post-drift (après avoir relâché le drift)
+        if (this.postDriftSparks) {
+            this.postDriftSparksTime += deltaTime;
+
+            if (this.postDriftSparksTime <= this.postDriftSparksDuration) {
+                // Continuer à créer des étincelles avec le niveau et la direction stockés
+                // postDrift=true pour plus d'étincelles
+                this.createDriftSparks(this.postDriftSparksLevel, this.postDriftSparksDirection, true);
+            } else {
+                // Arrêter les étincelles
+                this.postDriftSparks = false;
+                console.log('🛑 Post-drift sparks ended');
+            }
+        }
+
+        // DIRECTION - Tourner la voiture
+        if (turn !== 0 && currentSpeed > 0.1) {
+            // Facteur de vitesse plus progressif et adapté
+            const speedFactor = Math.min(Math.sqrt(currentSpeed / 12), 1.2); // Racine carrée pour courbe plus douce
+
+            // En drift, contrôle doux pour suivre les virages sans tourner en cercle
+            let maxTurnRate;
+            let lateralFriction; // Friction latérale
+
+            if (this.isDrifting) {
+                // Drift : rotation douce et contrôlée pour suivre les virages
+                maxTurnRate = 1.2; // Réduit à 1.2 pour un contrôle progressif et fluide
+                lateralFriction = 0.92; // Friction élevée pour suivre la trajectoire sans trop glisser
+            } else {
+                // Normal : virages standards
+                maxTurnRate = 3.5; // Excellente réactivité
+                lateralFriction = 0.93; // Friction haute pour bon grip
+            }
 
             // Inverser si marche arrière
             const isReversing = signedSpeed < -0.1;
@@ -1074,18 +1717,40 @@ class Portfolio3D {
             const newQuat = quaternionFromYRotation(newYRotation);
             carBody.setRotation(newQuat, true);
 
-            // Effet de drift
-            if (currentSpeed > 10 && Math.abs(turn) > 0.5) {
-                this.createDriftParticle();
+            // Appliquer friction latérale (glisse contrôlée en drift)
+            if (currentSpeed > 2.5) { // Seuil abaissé pour activation plus précoce
+                // Calculer la vélocité latérale
+                const rightDirLocal = { x: 1, y: 0, z: 0 };
+                const rightDir = rotateVectorByQuaternion(rightDirLocal, carQuat);
+
+                const currentVelVec = { x: currentVel.x, y: 0, z: currentVel.z };
+                const lateralDot = currentVelVec.x * rightDir.x + currentVelVec.z * rightDir.z;
+
+                // Réduire la vélocité latérale selon la friction (plus progressif)
+                const lateralReduction = lateralDot * (1 - lateralFriction);
+
+                // Appliquer avec facteur de vitesse pour effet progressif
+                const reductionFactor = Math.min(currentSpeed / 15, 1.0);
+
+                carBody.setLinvel({
+                    x: currentVel.x - rightDir.x * lateralReduction * reductionFactor,
+                    y: currentVel.y,
+                    z: currentVel.z - rightDir.z * lateralReduction * reductionFactor
+                }, true);
+            }
+
+            // Créer des traces de drift si on drifte
+            if (this.isDrifting && this.driftIntensity > 0.3) {
+                this.createDriftMark();
             }
         }
 
         // MOUVEMENT - Accélération/Freinage (plus fluide et réactif)
         if (forward !== 0) {
-            const acceleration = this.boostActive ? 50 : 35; // Augmenté (40->50, 25->35)
-            const baseMaxSpeed = car.maxSpeed;
-            const maxSpeed = this.boostActive ? baseMaxSpeed * this.boostMultiplier : baseMaxSpeed;
-            const maxReverseSpeed = maxSpeed * 0.6;
+            const baseAcceleration = this.boostActive ? 55 : 40; // Augmenté pour meilleure réactivité
+            const currentModeSettings = this.drivingModes[this.drivingMode];
+            const maxSpeed = this.boostActive ? currentModeSettings.boostMaxSpeed : currentModeSettings.maxSpeed;
+            const maxReverseSpeed = maxSpeed * 0.65;
 
             // Créer des particules de boost
             if (this.boostActive && forward > 0) {
@@ -1095,29 +1760,63 @@ class Portfolio3D {
             if (forward > 0) {
                 // Avancer
                 if (signedSpeed < 0) {
-                    // Freiner si on recule (plus rapide)
-                    signedSpeed = Math.min(signedSpeed + acceleration * 2.0 * deltaTime, 0);
+                    // Freiner si on recule (très rapide)
+                    signedSpeed = Math.min(signedSpeed + baseAcceleration * 2.2 * deltaTime, 0);
                 } else {
-                    // Accélération progressive plus rapide
-                    const accelFactor = 1 - (signedSpeed / maxSpeed) * 0.7;  // Réduit le facteur de ralentissement
-                    signedSpeed = Math.min(signedSpeed + acceleration * accelFactor * deltaTime, maxSpeed);
+                    // Accélération avec courbe réaliste (rapide au début, ralentit près de la vitesse max)
+                    const speedRatio = signedSpeed / maxSpeed;
+
+                    // Courbe d'accélération : puissante au début (0-50% vitesse), puis progressive
+                    let accelFactor;
+                    if (speedRatio < 0.5) {
+                        // Phase 1 : Accélération maximale (0-50% vitesse max)
+                        accelFactor = 1.0;
+                    } else if (speedRatio < 0.8) {
+                        // Phase 2 : Accélération modérée (50-80% vitesse max)
+                        accelFactor = 0.75;
+                    } else {
+                        // Phase 3 : Accélération réduite proche de la vitesse max (80-100%)
+                        accelFactor = 0.4;
+                    }
+
+                    const acceleration = baseAcceleration * accelFactor;
+                    signedSpeed = Math.min(signedSpeed + acceleration * deltaTime, maxSpeed);
                 }
             } else {
                 // Reculer
                 if (signedSpeed > 0.3) {
-                    // Freiner si on avance (plus efficace)
-                    signedSpeed = Math.max(signedSpeed - acceleration * 2.5 * deltaTime, 0);
+                    // Freiner si on avance (très efficace)
+                    signedSpeed = Math.max(signedSpeed - baseAcceleration * 3.0 * deltaTime, 0);
                 } else {
-                    // Marche arrière (plus rapide)
-                    signedSpeed = Math.max(signedSpeed - acceleration * 0.8 * deltaTime, -maxReverseSpeed);
+                    // Marche arrière (accélération progressive)
+                    const reverseAccelFactor = Math.min(Math.abs(signedSpeed) / maxReverseSpeed, 1.0);
+                    const reverseAccel = baseAcceleration * (1.0 - reverseAccelFactor * 0.5);
+                    signedSpeed = Math.max(signedSpeed - reverseAccel * 0.7 * deltaTime, -maxReverseSpeed);
                 }
             }
-        } else if (brake) {
-            // Frein à main (plus efficace)
-            signedSpeed *= 0.7;  // Plus fort (0.8 -> 0.7)
+        } else if (brake && !this.isDrifting) {
+            // Frein à main simple (quand pas en drift) - plus efficace
+            signedSpeed *= 0.65;
+        } else if (this.isDrifting) {
+            // En drift, conserver toute la vitesse pour suivre les virages en avançant (Mario Kart style)
+            signedSpeed *= 0.99; // Presque aucune perte de vitesse pour un drift fluide
         } else {
-            // Friction naturelle (plus faible pour conserver vitesse)
-            signedSpeed *= 0.95;  // Réduit (0.93 -> 0.95)
+            // Friction naturelle - décélération progressive selon vitesse
+            const speedAbs = Math.abs(signedSpeed);
+            let frictionFactor;
+
+            if (speedAbs > 20) {
+                // Haute vitesse : friction modérée (résistance de l'air)
+                frictionFactor = 0.94;
+            } else if (speedAbs > 10) {
+                // Vitesse moyenne : friction légère
+                frictionFactor = 0.96;
+            } else {
+                // Basse vitesse : friction minimale
+                frictionFactor = 0.97;
+            }
+
+            signedSpeed *= frictionFactor;
             if (Math.abs(signedSpeed) < 0.01) signedSpeed = 0;
         }
 
@@ -1135,9 +1834,45 @@ class Portfolio3D {
 
         carBody.setLinvel(newVelocity, true);
 
+        // MINI-TURBO BOOST - Appliquer le boost de vitesse temporaire
+        if (this.miniTurboActive) {
+            this.miniTurboTime += deltaTime;
+
+            if (this.miniTurboTime <= this.miniTurboDuration) {
+                // Ajouter la vitesse de boost dans la direction du mouvement
+                const currentSpeed = Math.abs(signedSpeed);
+                if (currentSpeed > 0.1) {
+                    const dirX = forwardDir.x;
+                    const dirZ = forwardDir.z;
+
+                    // Ajouter le boost à la vitesse actuelle
+                    const boostedVelocity = {
+                        x: newVelocity.x + dirX * this.miniTurboSpeed,
+                        y: newVelocity.y,
+                        z: newVelocity.z + dirZ * this.miniTurboSpeed
+                    };
+
+                    carBody.setLinvel(boostedVelocity, true);
+
+                    // Mettre à jour la vitesse affichée
+                    const boostedSpeed = Math.sqrt(
+                        boostedVelocity.x * boostedVelocity.x +
+                        boostedVelocity.z * boostedVelocity.z
+                    );
+                    car.speed = boostedSpeed;
+                }
+            } else {
+                // Désactiver le boost après la durée
+                this.miniTurboActive = false;
+                console.log('⚡ Mini-turbo ended');
+            }
+        }
+
         // Sauvegarder la vitesse signée pour le prochain frame
         this.car.currentSpeed = signedSpeed;
-        car.speed = Math.abs(signedSpeed);
+        if (!this.miniTurboActive) {
+            car.speed = Math.abs(signedSpeed);
+        }
     }
 
     enableManualCamera() {
@@ -1472,6 +2207,415 @@ class Portfolio3D {
         }
     }
 
+    toggleDrivingMode() {
+        // Basculer entre normal et sport
+        this.drivingMode = this.drivingMode === 'normal' ? 'sport' : 'normal';
+
+        // Mettre à jour la vitesse max de la voiture
+        if (this.car) {
+            this.car.maxSpeed = this.drivingModes[this.drivingMode].maxSpeed;
+        }
+
+        // Afficher un message
+        const currentMode = this.drivingModes[this.drivingMode];
+        const modeName = this.drivingMode === 'sport' ? 'SPORT 🏎️' : 'NORMAL 🚗';
+        console.log(`🔧 Mode de conduite : ${modeName}`);
+        console.log(`   Vitesse max : ${Math.round(currentMode.maxSpeed * 3.6)} km/h`);
+        console.log(`   Boost max : ${Math.round(currentMode.boostMaxSpeed * 3.6)} km/h`);
+
+        // Mettre à jour le HUD
+        this.updateDrivingModeHUD();
+
+        // Afficher un popup visuel
+        this.showDrivingModePopup(modeName, currentMode);
+    }
+
+    updateDrivingModeHUD() {
+        const currentMode = this.drivingModes[this.drivingMode];
+        const isSport = this.drivingMode === 'sport';
+
+        // Mettre à jour le texte (convertir en km/h pour l'affichage)
+        const modeNameEl = document.getElementById('mode-name');
+        const modeIconEl = document.getElementById('mode-icon');
+        const modeMaxSpeedEl = document.getElementById('mode-max-speed');
+        const modeBoostSpeedEl = document.getElementById('mode-boost-speed');
+        const modePanelEl = document.getElementById('driving-mode-panel');
+
+        if (modeNameEl) modeNameEl.textContent = isSport ? 'SPORT' : 'NORMAL';
+        if (modeIconEl) modeIconEl.textContent = isSport ? '🏎️' : '🚗';
+        if (modeMaxSpeedEl) modeMaxSpeedEl.textContent = Math.round(currentMode.maxSpeed * 3.6);
+        if (modeBoostSpeedEl) modeBoostSpeedEl.textContent = Math.round(currentMode.boostMaxSpeed * 3.6);
+
+        // Mettre à jour les couleurs du panneau
+        if (modePanelEl) {
+            if (isSport) {
+                modePanelEl.style.background = 'linear-gradient(135deg, rgba(255, 68, 68, 0.2), rgba(255, 68, 68, 0.1))';
+                modePanelEl.style.borderColor = 'rgba(255, 68, 68, 0.3)';
+                if (modeNameEl) modeNameEl.style.color = '#ff4444';
+            } else {
+                modePanelEl.style.background = 'linear-gradient(135deg, rgba(68, 255, 68, 0.2), rgba(68, 255, 68, 0.1))';
+                modePanelEl.style.borderColor = 'rgba(68, 255, 68, 0.3)';
+                if (modeNameEl) modeNameEl.style.color = '#44ff44';
+            }
+        }
+    }
+
+    showDrivingModePopup(modeName, modeSettings) {
+        // Créer un popup temporaire
+        const popup = document.createElement('div');
+        popup.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.95), rgba(20,20,20,0.95));
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10000;
+            text-align: center;
+            border: 3px solid ${this.drivingMode === 'sport' ? '#ff4444' : '#44ff44'};
+            box-shadow: 0 0 30px ${this.drivingMode === 'sport' ? 'rgba(255,68,68,0.5)' : 'rgba(68,255,68,0.5)'};
+            animation: popup-appear 0.3s ease-out;
+        `;
+
+        popup.innerHTML = `
+            <div style="font-size: 32px; margin-bottom: 15px;">${modeName}</div>
+            <div style="font-size: 18px; opacity: 0.8;">
+                Vitesse max : ${Math.round(modeSettings.maxSpeed * 3.6)} km/h<br>
+                Boost max : ${Math.round(modeSettings.boostMaxSpeed * 3.6)} km/h
+            </div>
+        `;
+
+        // Ajouter l'animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes popup-appear {
+                from {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) scale(0.8);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate(-50%, -50%) scale(1);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        document.body.appendChild(popup);
+
+        // Retirer le popup après 2 secondes
+        setTimeout(() => {
+            popup.style.transition = 'opacity 0.3s ease-out';
+            popup.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(popup);
+                document.head.removeChild(style);
+            }, 300);
+        }, 2000);
+    }
+
+    loadCarSkin(carGroup, skinId) {
+        const skin = this.availableSkins.find(s => s.id === skinId);
+        if (!skin) {
+            console.error(`❌ Skin not found: ${skinId}`);
+            return;
+        }
+
+        console.log(`🎨 Loading skin: ${skin.name}`);
+
+        const loader = new GLTFLoader();
+        loader.load(
+            skin.path,
+            (gltf) => {
+                console.log(`✅ ${skin.name} model loaded successfully!`);
+
+                const model = gltf.scene;
+
+                // ÉTAPE 1 : Calculer la bounding box AVANT scaling
+                const bbox = new THREE.Box3().setFromObject(model);
+                const size = new THREE.Vector3();
+                bbox.getSize(size);
+
+                // ÉTAPE 2 : Normaliser la taille - on veut que la longueur soit d'environ 4.5 unités
+                const TARGET_LENGTH = 4.5; // Taille cible en unités (réduite pour véhicules plus petits)
+
+                // Utiliser la plus grande dimension (longueur ou largeur) comme référence
+                const maxDimension = Math.max(size.x, size.z);
+                const normalizedScale = TARGET_LENGTH / maxDimension;
+
+                console.log(`📏 ${skin.name} - Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+                console.log(`📏 ${skin.name} - Normalized scale: ${normalizedScale.toFixed(3)}`);
+
+                // Appliquer l'échelle normalisée
+                model.scale.set(normalizedScale, normalizedScale, normalizedScale);
+
+                // ÉTAPE 3 : Recalculer la bounding box après scaling
+                bbox.setFromObject(model);
+                const center = new THREE.Vector3();
+                bbox.getCenter(center);
+                bbox.getSize(size);
+
+                // ÉTAPE 4 : Centrer le modèle horizontalement (X et Z)
+                model.position.set(-center.x, 0, -center.z);
+
+                // ÉTAPE 5 : Aligner le bas du modèle avec le corps physique
+                const yMin = bbox.min.y;
+                model.position.y = -yMin + skin.yOffset;
+
+                console.log(`📐 ${skin.name} - Final size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+
+                // Améliorer les matériaux pour de beaux reflets
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        // Activer les ombres
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+
+                        // Améliorer le matériau pour les reflets
+                        if (child.material) {
+                            const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+                            materials.forEach(material => {
+                                // S'assurer que c'est un MeshStandardMaterial ou MeshPhysicalMaterial
+                                if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+                                    // Garder les valeurs par défaut du modèle
+                                    material.needsUpdate = true;
+                                }
+                            });
+                        }
+                    }
+                });
+
+                // Optimiser les textures
+                if (this.renderer) {
+                    optimizeModel(model, this.renderer);
+                }
+
+                // Retirer l'ancien modèle s'il existe
+                const oldModel = carGroup.children.find(child => child.userData.isSkin);
+                if (oldModel) {
+                    carGroup.remove(oldModel);
+                }
+
+                // Marquer le modèle comme skin
+                model.userData.isSkin = true;
+
+                // Ajouter le nouveau modèle au groupe
+                carGroup.add(model);
+
+                console.log(`🏎️ ${skin.name} added to car group`);
+            },
+            (progress) => {
+                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                console.log(`Loading ${skin.name}: ${percent}%`);
+            },
+            (error) => {
+                console.error(`❌ Error loading ${skin.name} model:`, error);
+            }
+        );
+    }
+
+    changeCarSkin(skinId) {
+        if (!this.car) return;
+
+        const skin = this.availableSkins.find(s => s.id === skinId);
+        if (!skin) {
+            console.error(`❌ Skin not found: ${skinId}`);
+            return;
+        }
+
+        this.currentSkinId = skinId;
+        this.loadCarSkin(this.car.mesh, skinId);
+
+        console.log(`✨ Changed to skin: ${skin.name}`);
+    }
+
+    toggleGarage() {
+        this.garageOpen = !this.garageOpen;
+
+        if (this.garageOpen) {
+            this.openGarage();
+        } else {
+            this.closeGarage();
+        }
+    }
+
+    openGarage() {
+        console.log('🔧 Opening garage...');
+
+        // Créer l'interface du garage avec scroll
+        const garageUI = document.createElement('div');
+        garageUI.id = 'garage-ui';
+        garageUI.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(20px);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        `;
+
+        garageUI.innerHTML = `
+            <!-- Header fixe -->
+            <div style="
+                background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 20, 0.95));
+                border-bottom: 3px solid rgba(255, 170, 0, 0.5);
+                padding: 30px;
+                text-align: center;
+                flex-shrink: 0;
+            ">
+                <h2 style="color: #ffaa00; font-size: 42px; margin: 0 0 10px 0; font-family: 'Courier New', monospace; text-transform: uppercase; letter-spacing: 3px;">
+                    🔧 Garage
+                </h2>
+                <p style="color: #888; font-size: 16px; margin: 0;">
+                    Choisissez votre véhicule (${this.availableSkins.length} disponibles)
+                </p>
+            </div>
+
+            <!-- Zone scrollable -->
+            <div style="
+                flex: 1;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 40px;
+            ">
+                <div id="skin-grid" style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                    gap: 25px;
+                    max-width: 1400px;
+                    margin: 0 auto;
+                ">
+                    ${this.availableSkins.map(skin => `
+                        <div class="skin-card" data-skin-id="${skin.id}" style="
+                            background: ${this.currentSkinId === skin.id ? 'linear-gradient(135deg, rgba(255, 170, 0, 0.3), rgba(255, 170, 0, 0.1))' : 'rgba(255, 255, 255, 0.05)'};
+                            border: 3px solid ${this.currentSkinId === skin.id ? '#ffaa00' : 'rgba(255, 255, 255, 0.1)'};
+                            border-radius: 15px;
+                            padding: 25px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            text-align: center;
+                            position: relative;
+                        ">
+                            <div style="font-size: 64px; margin-bottom: 15px;">${skin.thumbnail}</div>
+                            <div style="color: white; font-weight: bold; font-size: 15px; margin-bottom: 8px; line-height: 1.3;">
+                                ${skin.name}
+                            </div>
+                            ${this.currentSkinId === skin.id ? `
+                                <div style="
+                                    background: linear-gradient(90deg, #ffaa00, #ff8800);
+                                    color: #000;
+                                    font-size: 11px;
+                                    font-weight: bold;
+                                    padding: 6px 12px;
+                                    border-radius: 20px;
+                                    margin-top: 10px;
+                                ">
+                                    ✓ ÉQUIPÉ
+                                </div>
+                            ` : `
+                                <div style="
+                                    color: #666;
+                                    font-size: 11px;
+                                    margin-top: 10px;
+                                ">
+                                    Cliquer pour équiper
+                                </div>
+                            `}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Footer fixe -->
+            <div style="
+                background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 20, 0.95));
+                border-top: 3px solid rgba(255, 170, 0, 0.5);
+                padding: 25px;
+                text-align: center;
+                flex-shrink: 0;
+            ">
+                <button id="close-garage-btn" style="
+                    background: linear-gradient(135deg, #ff6b6b, #ff4444);
+                    color: white;
+                    border: none;
+                    padding: 15px 50px;
+                    border-radius: 10px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+                ">
+                    FERMER (G)
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(garageUI);
+
+        // Ajouter les événements de clic sur les skins
+        document.querySelectorAll('.skin-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const skinId = card.getAttribute('data-skin-id');
+                this.changeCarSkin(skinId);
+                this.closeGarage();
+                setTimeout(() => this.openGarage(), 100);
+            });
+
+            // Effet hover
+            card.addEventListener('mouseenter', () => {
+                if (card.getAttribute('data-skin-id') !== this.currentSkinId) {
+                    card.style.background = 'rgba(255, 255, 255, 0.1)';
+                    card.style.borderColor = 'rgba(255, 170, 0, 0.5)';
+                    card.style.transform = 'scale(1.05)';
+                }
+            });
+
+            card.addEventListener('mouseleave', () => {
+                if (card.getAttribute('data-skin-id') !== this.currentSkinId) {
+                    card.style.background = 'rgba(255, 255, 255, 0.05)';
+                    card.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    card.style.transform = 'scale(1)';
+                }
+            });
+        });
+
+        // Bouton fermer
+        document.getElementById('close-garage-btn').addEventListener('click', () => {
+            this.toggleGarage();
+        });
+
+        // Effet hover sur le bouton
+        const closeBtn = document.getElementById('close-garage-btn');
+        closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.transform = 'scale(1.05)';
+            closeBtn.style.boxShadow = '0 0 20px rgba(255, 68, 68, 0.5)';
+        });
+        closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.transform = 'scale(1)';
+            closeBtn.style.boxShadow = 'none';
+        });
+    }
+
+    closeGarage() {
+        console.log('🔧 Closing garage...');
+        const garageUI = document.getElementById('garage-ui');
+        if (garageUI) {
+            garageUI.remove();
+        }
+    }
+
     checkGarageProximity() {
         if (!this.car || !this.garageZone || this.inGarage) return;
 
@@ -1694,6 +2838,9 @@ class Portfolio3D {
         // Limiter deltaTime pour éviter les spirales de mort
         deltaTime = Math.min(deltaTime, 0.1);
 
+        // Skip physics updates if Photo Mode is active
+        const isPhotoModeActive = this.photoMode && this.photoMode.isActive;
+
         // Accumuler le temps
         this.timeAccumulator += deltaTime;
 
@@ -1701,7 +2848,7 @@ class Portfolio3D {
         const maxIterations = 5; // Limiter pour éviter les boucles infinies
         let iterations = 0;
 
-        while (this.timeAccumulator >= this.fixedTimeStep && iterations < maxIterations) {
+        while (this.timeAccumulator >= this.fixedTimeStep && iterations < maxIterations && !isPhotoModeActive) {
             // Mise à jour de la voiture et de la physique avec timestep fixe
             this.updateCar(this.fixedTimeStep);
             this.world.step(); // Rapier utilise son propre timestep interne
@@ -1735,14 +2882,44 @@ class Portfolio3D {
                 console.log('Car Y position:', carPos.y.toFixed(2), 'Velocity Y:', carVel.y.toFixed(2), 'Sleeping:', this.car.body.isSleeping());
             }
 
+            // Position avec mini-saut au début du drift
+            let targetY = carPos.y;
+
+            // Animation de saut au début du drift (courbe en cloche)
+            if (this.isDrifting && this.driftJumpProgress < 0.5) {
+                // Saut qui monte puis redescend (fonction sin)
+                const jumpHeight = 0.4; // Hauteur du saut en mètres
+                const jumpCurve = Math.sin(this.driftJumpProgress * Math.PI); // 0 → 1 → 0
+                targetY += jumpHeight * jumpCurve;
+            }
+
             this.car.mesh.position.lerp(
-                new THREE.Vector3(carPos.x, carPos.y, carPos.z),
+                new THREE.Vector3(carPos.x, targetY, carPos.z),
                 0.3
             );
-            this.car.mesh.quaternion.slerp(
-                new THREE.Quaternion(carRot.x, carRot.y, carRot.z, carRot.w),
-                0.3
-            );
+
+            // Rotation de base (du corps physique)
+            const baseQuat = new THREE.Quaternion(carRot.x, carRot.y, carRot.z, carRot.w);
+
+            // Ajouter l'inclinaison de drift (effet deux roues)
+            if (this.isDrifting && this.driftIntensity > 0.1) {
+                // Calculer l'angle d'inclinaison (roll) en fonction de l'intensité et de la direction
+                const maxTiltAngle = Math.PI / 5; // 36 degrés maximum pour effet prononcé
+                const tiltAngle = this.driftDirection * this.driftIntensity * maxTiltAngle; // INVERSÉ (retiré le -)
+
+                // Convertir le quaternion de base en Euler pour modifier le roll
+                const euler = new THREE.Euler();
+                euler.setFromQuaternion(baseQuat, 'YXZ');
+
+                // Ajouter l'inclinaison latérale (roll sur l'axe Z)
+                euler.z = tiltAngle;
+
+                // Reconvertir en quaternion
+                baseQuat.setFromEuler(euler);
+            }
+
+            // Appliquer la rotation finale avec interpolation fluide
+            this.car.mesh.quaternion.slerp(baseQuat, 0.15);
         }
 
         // Synchronisation autres objets physiques/visuels avec interpolation
@@ -1785,6 +2962,15 @@ class Portfolio3D {
         // Mise à jour des particules
         this.updateParticles(deltaTime);
         this.updateSpeedLines(deltaTime);
+
+        // Mise à jour du système météo
+        if (this.weatherSystem) {
+            this.weatherSystem.update(deltaTime);
+            this.weatherSystem.updateIndicator();
+        }
+
+        // Mise à jour des traces de drift
+        this.updateDriftMarks(deltaTime);
 
         // Animer les nuages
         if (this.clouds) {

@@ -15,7 +15,8 @@
     "@dimforge/rapier3d-compat": "^0.19.1",
     "@sentry/browser": "^10.20.0",
     "cannon-es": "^0.20.0",
-    "three": "^0.180.0"
+    "three": "^0.180.0",
+    "three-stdlib": "^2.36.0"
   },
   "devDependencies": {
     "terser": "^5.44.0",
